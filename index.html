@@ -1,0 +1,1722 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>电商多调价周期出货分析系统 - REV 2609241940</title>
+  <!-- React & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-subtle: #334155;
+      --border: #475569;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --accent: #a855f7;
+      --emerald: #10b981;
+      --indigo: #6366f1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    /* 英文和数字采用 Calibre/Calibri，中文字体采用 Microsoft YaHei */
+    body {
+      font-family: "Calibre", "Calibri", "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", "微软雅黑", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrapper {
+      max-width: 1560px;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem 2rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .header-title-row h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .rev-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--primary);
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-family: "Calibre", "Calibri", monospace;
+      letter-spacing: 0.05em;
+    }
+
+    .header p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: #0f172a;
+      padding: 0.3rem;
+      border-radius: 10px;
+      gap: 0.35rem;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.55rem 1rem;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      font-family: "Calibre", "Calibri", "Microsoft YaHei", sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--card-subtle);
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+
+    .control-panel {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn {
+      background: var(--card-subtle);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 0.5rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: "Calibre", "Calibri", "Microsoft YaHei", sans-serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: #0284c7; border-color: var(--primary); }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-success { background: #059669; border-color: var(--emerald); }
+    .btn-success:hover { background: #047857; }
+    .btn-danger { background: #991b1b; border-color: var(--danger); }
+    .btn-danger:hover { background: #b91c1c; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .summary-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .summary-card .val {
+      font-size: 1.8rem;
+      font-weight: 800;
+      font-family: "Calibre", "Calibri", sans-serif;
+    }
+
+    .summary-card .title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .table-container {
+      max-height: 560px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0f172a;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+      font-size: 0.88rem;
+      font-family: "Calibre", "Calibri", "Microsoft YaHei", sans-serif;
+    }
+
+    th {
+      background: #1e293b;
+      position: sticky;
+      top: 0;
+      padding: 0.75rem 0.85rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      z-index: 2;
+    }
+
+    td {
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.35);
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    tr:hover td {
+      background: rgba(56, 189, 248, 0.04);
+      color: #fff;
+    }
+
+    .tag-badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+    }
+
+    .kpi-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: var(--primary);
+    }
+
+    .footer-rev-bar {
+      margin-top: 1.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .footer-rev-bar code {
+      background: #0f172a;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: var(--primary);
+      font-family: "Calibre", "Calibri", monospace;
+    }
+
+    input, select, textarea {
+      font-family: "Calibre", "Calibri", "Microsoft YaHei", sans-serif;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="root" class="wrapper"></div>
+
+<script type="text/babel">
+  const { useState, useMemo, useEffect, useRef } = React;
+
+  const CURRENT_REV = "2609241940";
+  const STORAGE_KEY_SALES = "VOLTZ_PRICE_SALES_LAST_SALES_DATA";
+  const STORAGE_KEY_PRICES = "VOLTZ_PRICE_SALES_LAST_PRICE_DATA";
+
+  const REV_HISTORY_TEXT = 
+`================================================================================
+VOLTZ TOYS PRICE & SALES PACE DUAL-DIMENSION SYSTEM - REVISION HISTORY
+Current Version: REV ${CURRENT_REV}
+Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
+================================================================================
+
+[REV: 2609241940] - 2026-09-24 19:40
+- 数据持久化升级：自动将最后一次上传的 Raw Data 订单明细与调价记录持久化到 localStorage。
+- 页面再次打开或刷新默认加载最后一次上传的真实数据，并提供一键重置功能。
+- 字体系统重构：英文字符与所有数字指标全面统一采用 Calibre / Calibri 字体；中文字体严格回退为 Microsoft YaHei（微软雅黑）。
+- 图表字体统一：ECharts 全局字重与文字族统一采用 Calibre 与 Microsoft YaHei。
+
+[REV: 2609241900] - 2026-09-24 19:00
+- 重点重构：重构全局分析图表，支持选择指定调价区间与上一区间对比。
+- 坐标定义：横轴 (X) 为产品 SKU，纵轴 (Y) 为出货速度差值 (件/天)。
+- 渠道细分：在同一个图表内支持对 Amazon(全平台)、Amazon Voltz、Amazon DAAN 与 Shopify Voltz 四项通道进行同屏出货速度差对比。
+================================================================================`;
+
+  function parseCSV(text) {
+    const rows = [];
+    let currentRow = [];
+    let currentVal = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (insideQuotes && nextChar === '"') {
+          currentVal += '"';
+          i++;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        currentRow.push(currentVal.trim());
+        currentVal = '';
+      } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+        if (char === '\r' && nextChar === '\n') i++;
+        currentRow.push(currentVal.trim());
+        if (currentRow.some(c => c.length > 0)) rows.push(currentRow);
+        currentRow = [];
+        currentVal = '';
+      } else {
+        currentVal += char;
+      }
+    }
+    if (currentVal.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentVal.trim());
+      if (currentRow.some(c => c.length > 0)) rows.push(currentRow);
+    }
+    return rows;
+  }
+
+  // 默认初始 24 款产品价格底表[cite: 1]
+  const DEFAULT_PRICE_HISTORY = [
+    { sku: '81155J', date: '2026-07-01', price: 105.59, itemType: 'Ride-on Car' },
+    { sku: '82032',  date: '2026-07-01', price: 439.99, itemType: 'Ride-on Car' },
+    { sku: '80033',  date: '2026-07-01', price: 329.99, itemType: 'Ride-on Car' },
+    { sku: '80011',  date: '2026-07-01', price: 199.99, itemType: 'Ride-on Car' },
+    { sku: '82055',  date: '2026-07-01', price: 439.99, itemType: 'Ride-on Car' },
+    { sku: '83568',  date: '2026-07-01', price: 499.99, itemType: 'Ride-on Car' },
+    { sku: '83558',  date: '2026-07-01', price: 469.99, itemType: 'Ride-on Car' },
+    { sku: '82539',  date: '2026-07-01', price: 579.99, itemType: 'Ride-on Car' },
+    { sku: '80063',  date: '2026-07-01', price: 469.99, itemType: 'Ride-on Car' },
+    { sku: '88605',  date: '2026-07-01', price: 359.99, itemType: 'Ride-on Car' },
+    { sku: '81919',  date: '2026-07-01', price: 299.99, itemType: 'Ride-on Car' },
+    { sku: '88628',  date: '2026-07-01', price: 499.99, itemType: 'Ride-on Car' },
+    { sku: '80109',  date: '2026-07-01', price: 429.99, itemType: 'Ride-on Car' },
+    { sku: '81968',  date: '2026-07-01', price: 439.99, itemType: 'Ride-on Car' },
+    { sku: '88638',  date: '2026-07-01', price: 449.99, itemType: 'Ride-on Car' },
+    { sku: '88888',  date: '2026-07-01', price: 479.99, itemType: 'Ride-on Car' },
+    { sku: '80732',  date: '2026-07-01', price: 599.99, itemType: 'Ride-on Car' },
+    { sku: '80017',  date: '2026-07-01', price: 249.99, itemType: 'Ride-on Car' },
+    { sku: '80688',  date: '2026-07-01', price: 449.99, itemType: 'Ride-on Car' },
+    { sku: '88889',  date: '2026-07-01', price: 479.99, itemType: 'Ride-on Car' },
+    { sku: '88621',  date: '2026-07-01', price: 419.99, itemType: 'Ride-on Car' },
+    { sku: '88626',  date: '2026-07-01', price: 279.99, itemType: 'Ride-on Car' },
+    { sku: '86988',  date: '2026-07-01', price: 659.99, itemType: 'RC Car' },
+    { sku: '8CA01',  date: '2026-07-01', price: 849.99, itemType: 'Ride-on Car' },
+
+    { sku: '81155J', date: '2026-09-17', price: 99.99,  itemType: 'Ride-on Car' },
+    { sku: '82032',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '80033',  date: '2026-09-17', price: 289.99, itemType: 'Ride-on Car' },
+    { sku: '80011',  date: '2026-09-17', price: 199.99, itemType: 'Ride-on Car' },
+    { sku: '82055',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '83568',  date: '2026-09-17', price: 439.99, itemType: 'Ride-on Car' },
+    { sku: '83558',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '82539',  date: '2026-09-17', price: 539.99, itemType: 'Ride-on Car' },
+    { sku: '80063',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '88605',  date: '2026-09-17', price: 299.99, itemType: 'Ride-on Car' },
+    { sku: '81919',  date: '2026-09-17', price: 299.99, itemType: 'Ride-on Car' },
+    { sku: '88628',  date: '2026-09-17', price: 449.99, itemType: 'Ride-on Car' },
+    { sku: '80109',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '81968',  date: '2026-09-17', price: 299.99, itemType: 'Ride-on Car' },
+    { sku: '88638',  date: '2026-09-17', price: 399.99, itemType: 'Ride-on Car' },
+    { sku: '88888',  date: '2026-09-17', price: 349.99, itemType: 'Ride-on Car' },
+    { sku: '80732',  date: '2026-09-17', price: 569.99, itemType: 'Ride-on Car' },
+    { sku: '80017',  date: '2026-09-17', price: 249.99, itemType: 'Ride-on Car' },
+    { sku: '80688',  date: '2026-09-17', price: 449.99, itemType: 'Ride-on Car' },
+    { sku: '88889',  date: '2026-09-17', price: 439.99, itemType: 'Ride-on Car' },
+    { sku: '88621',  date: '2026-09-17', price: 389.99, itemType: 'Ride-on Car' },
+    { sku: '88626',  date: '2026-09-17', price: 279.99, itemType: 'Ride-on Car' },
+    { sku: '86988',  date: '2026-09-17', price: 659.99, itemType: 'RC Car' },
+    { sku: '8CA01',  date: '2026-09-17', price: 849.99, itemType: 'Ride-on Car' }
+  ];
+
+  function MultiSelect({ title, options, selected, onChange }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+      const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+      document.addEventListener('mousedown', handler);
+      return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const toggle = (opt) => {
+      if (selected.includes(opt)) {
+        if (selected.length > 1) onChange(selected.filter(x => x !== opt));
+      } else {
+        onChange([...selected, opt]);
+      }
+    };
+
+    return (
+      <div className="relative inline-block" ref={ref}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{title}:</span>
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            style={{
+              background: '#0f172a',
+              border: '1px solid var(--border)',
+              color: '#f8fafc',
+              padding: '0.45rem 0.8rem',
+              borderRadius: '7px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minWidth: '130px'
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>
+              {selected.length === options.length ? '全部 (' + options.length + ')' : selected.join(', ')}
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>▼</span>
+          </button>
+        </div>
+
+        {open && (
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            marginTop: '4px',
+            width: '210px',
+            background: 'var(--card-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            zIndex: 50,
+            padding: '0.6rem',
+            fontSize: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '6px' }}>
+              <button onClick={() => onChange([...options])} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>全选</button>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>已选 {selected.length}/{options.length}</span>
+            </div>
+            <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+              {options.map(opt => (
+                <label key={opt} style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px' }}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(opt)}
+                    onChange={() => toggle(opt)}
+                    style={{ marginRight: '8px', accentColor: 'var(--primary)' }}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function App() {
+    // --- 本地持久化加载 (Default 存储最后一次上传的数据) ---
+    const [salesData, setSalesData] = useState(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_SALES);
+        return saved ? JSON.parse(saved) : [];
+      } catch (err) {
+        return [];
+      }
+    });
+
+    const [priceData, setPriceData] = useState(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_PRICES);
+        return saved ? JSON.parse(saved) : DEFAULT_PRICE_HISTORY;
+      } catch (err) {
+        return DEFAULT_PRICE_HISTORY;
+      }
+    });
+
+    const [cutDates, setCutDates] = useState(['2026-09-17']);
+
+    const defaultSkus = useMemo(() => [
+      '81155J', '82032', '80033', '80011', '82055', '83568',
+      '83558', '82539', '80063', '88605', '81919', '88628',
+      '80109', '81968', '88638', '88888', '80732', '80017',
+      '80688', '88889', '88621', '88626', '86988', '8CA01'
+    ], []);
+    const [selectedSkus, setSelectedSkus] = useState(defaultSkus);
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc', intervalId: null });
+
+    const [allChannels, setAllChannels] = useState(['Amazon', 'Shopify', 'Walmart', 'Offline']);
+    const [allAccounts, setAllAccounts] = useState(['Voltz', 'DAAN', 'KR']);
+    const [selectedChannels, setSelectedChannels] = useState(['Amazon', 'Shopify']);
+    const [selectedAccounts, setSelectedAccounts] = useState(['Voltz', 'DAAN']);
+
+    const [onlyPositive, setOnlyPositive] = useState(true);
+
+    const [activeTab, setActiveTab] = useState('tab1');
+    const [detailSku, setDetailSku] = useState('82032');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isRevModalOpen, setIsRevModalOpen] = useState(false);
+    const [newSku, setNewSku] = useState('');
+    const [newType, setNewType] = useState('Ride-on Car');
+    const [newBasePrice, setNewBasePrice] = useState('100');
+
+    const [queryDate, setQueryDate] = useState('2026-09-17');
+    const [checkedPrice, setCheckedPrice] = useState(null);
+
+    const [selectedCompareIdx, setSelectedCompareIdx] = useState(1);
+
+    const chartRef = useRef(null);
+    const chartInst = useRef(null);
+    const scatterRef = useRef(null);
+    const scatterInst = useRef(null);
+    const velocityDiffChartRef = useRef(null);
+    const velocityDiffChartInst = useRef(null);
+
+    const isPositiveStatus = (status) => {
+      if (!status) return false;
+      const valid = ['Shipped', 'Shipping', 'Delivered', 'Completed'];
+      return valid.includes(status);
+    };
+
+    // 自动持久化保存数据到 localStorage
+    useEffect(() => {
+      try {
+        if (salesData.length > 0) {
+          localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(salesData));
+        }
+      } catch (e) {
+        console.warn('localStorage 限额或不可用', e);
+      }
+    }, [salesData]);
+
+    useEffect(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY_PRICES, JSON.stringify(priceData));
+      } catch (e) {
+        console.warn('localStorage 限额或不可用', e);
+      }
+    }, [priceData]);
+
+    // 重置持久化缓存数据
+    const handleResetStorage = () => {
+      if (confirm('确认清空已保存的上传数据并恢复默认初始库吗？')) {
+        localStorage.removeItem(STORAGE_KEY_SALES);
+        localStorage.removeItem(STORAGE_KEY_PRICES);
+        setSalesData([]);
+        setPriceData(DEFAULT_PRICE_HISTORY);
+        alert('已成功重置！');
+      }
+    };
+
+    const getPriceAtDate = (sku, targetDate) => {
+      const history = priceData
+        .filter(p => p.sku === sku)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (history.length === 0) return 0;
+      let p = history[0].price;
+      for (const log of history) {
+        if (targetDate > log.date) {
+          p = log.price;
+        }
+      }
+      return p;
+    };
+
+    useEffect(() => {
+      setCheckedPrice(getPriceAtDate(detailSku, queryDate));
+    }, [detailSku, queryDate, priceData]);
+
+    const timeIntervals = useMemo(() => {
+      if (salesData.length === 0) {
+        return [
+          { id: 'P1', start: '2026-09-01', end: '2026-09-17', label: 'P1 (09-01~09-17)' },
+          { id: 'P2', start: '2026-09-18', end: '2026-09-24', label: 'P2 (09-18~09-24)' }
+        ];
+      }
+
+      const validDates = salesData.map(s => s.date).filter(Boolean).sort();
+      if (validDates.length === 0) return [];
+      const minDate = validDates[0];
+      const maxDate = validDates[validDates.length - 1];
+
+      const validCuts = cutDates.filter(d => d >= minDate && d < maxDate).sort();
+      const intervals = [];
+      let currStart = minDate;
+
+      validCuts.forEach((cutDate, idx) => {
+        intervals.push({
+          id: `P${idx + 1}`,
+          start: currStart,
+          end: cutDate,
+          label: `P${idx + 1} (${currStart.slice(5)}~${cutDate.slice(5)})`
+        });
+        const next = new Date(cutDate);
+        next.setDate(next.getDate() + 1);
+        currStart = next.toISOString().split('T')[0];
+      });
+
+      if (currStart <= maxDate) {
+        intervals.push({
+          id: `P${validCuts.length + 1}`,
+          start: currStart,
+          end: maxDate,
+          label: `P${validCuts.length + 1} (${currStart.slice(5)}~${maxDate.slice(5)})`
+        });
+      }
+      return intervals;
+    }, [salesData, cutDates]);
+
+    useEffect(() => {
+      if (timeIntervals.length > 1) {
+        setSelectedCompareIdx(timeIntervals.length - 1);
+      }
+    }, [timeIntervals]);
+
+    const handleCsvUpload = (e, type) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const text = evt.target.result;
+        const rows = parseCSV(text);
+        if (rows.length <= 1) return;
+
+        const headers = rows[0].map(h => h.trim());
+
+        if (type === 'sales') {
+          const dateIdx = headers.indexOf('Date');
+          const skuIdx = headers.indexOf('Product') !== -1 ? headers.indexOf('Product') : headers.indexOf('sku');
+          const channelIdx = headers.indexOf('Base Channel') !== -1 ? headers.indexOf('Base Channel') : headers.indexOf('channel');
+          const accountIdx = headers.indexOf('Account') !== -1 ? headers.indexOf('Account') : headers.indexOf('account');
+          const statusIdx = headers.indexOf('Status') !== -1 ? headers.indexOf('Status') : headers.indexOf('status');
+          const revIdx = headers.indexOf('Gross Revenue') !== -1 ? headers.indexOf('Gross Revenue') : headers.indexOf('rev');
+
+          const cleanSales = [];
+          const chSet = new Set();
+          const accSet = new Set();
+
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            const dateVal = r[dateIdx];
+            const skuVal = r[skuIdx];
+            if (!dateVal || !skuVal || dateVal.length < 8) continue;
+
+            const ch = r[channelIdx] || 'Other';
+            const acc = r[accountIdx] || 'Other';
+            const status = r[statusIdx] || '';
+            const rev = parseFloat(r[revIdx]) || 0;
+
+            cleanSales.push({ date: dateVal, sku: skuVal, channel: ch, account: acc, status, qty: 1, rev });
+            chSet.add(ch);
+            accSet.add(acc);
+          }
+
+          setSalesData(cleanSales);
+          setAllChannels(Array.from(chSet));
+          setAllAccounts(Array.from(accSet));
+          alert(`成功导入销售 Raw Data: ${cleanSales.length} 条记录！数据已自动保存在本地。`);
+        } else if (type === 'prices') {
+          const cleanPrices = [];
+          const newCuts = new Set(cutDates);
+
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            const sku = r[0];
+            const date = r[1];
+            const price = parseFloat(r[2]) || 0;
+            const itemType = r[4] || 'Ride-on Car';
+
+            if (sku && date) {
+              cleanPrices.push({ sku, date, price, itemType });
+              newCuts.add(date);
+            }
+          }
+
+          setPriceData(prev => [...prev, ...cleanPrices]);
+          setCutDates(Array.from(newCuts));
+          alert(`成功追加调价记录: ${cleanPrices.length} 条！数据已自动保存在本地。`);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    const rawTableRows = useMemo(() => {
+      return selectedSkus.map(sku => {
+        const itemType = priceData.find(p => p.sku === sku)?.itemType || 'Ride-on Car';
+
+        const skuSales = salesData.filter(s =>
+          s.sku === sku &&
+          selectedChannels.includes(s.channel) &&
+          selectedAccounts.includes(s.account) &&
+          (!onlyPositive || isPositiveStatus(s.status))
+        );
+
+        let prevSpeed = null;
+
+        const intervalMetrics = timeIntervals.map((inter, idx) => {
+          const inRange = skuSales.filter(s => s.date >= inter.start && s.date <= inter.end);
+          const val = inRange.reduce((acc, cur) => acc + cur.rev, 0);
+          const count = inRange.reduce((acc, cur) => acc + cur.qty, 0);
+          const days = Math.max(1, Math.ceil((new Date(inter.end) - new Date(inter.start)) / 86400000) + 1);
+
+          const avgSpeed = Number((count / days).toFixed(2));
+          const activePrice = getPriceAtDate(sku, inter.end);
+
+          let diffWithPrev = null;
+          if (idx > 0 && prevSpeed !== null) {
+            diffWithPrev = Number((avgSpeed - prevSpeed).toFixed(2));
+          }
+          prevSpeed = avgSpeed;
+
+          return {
+            id: inter.id,
+            val: Number(val.toFixed(2)),
+            count: Number(count.toFixed(2)),
+            avgSpeed: Number(avgSpeed.toFixed(2)),
+            diffWithPrev,
+            activePrice
+          };
+        });
+
+        const firstP = intervalMetrics[0]?.activePrice || 0;
+        const lastP = intervalMetrics[intervalMetrics.length - 1]?.activePrice || 0;
+        const priceChangePct = firstP > 0 ? Number((((lastP - firstP) / firstP) * 100).toFixed(1)) : 0;
+
+        const firstSpeed = intervalMetrics[0]?.avgSpeed || 0;
+        const lastSpeed = intervalMetrics[intervalMetrics.length - 1]?.avgSpeed || 0;
+        const totalSpeedDiff = Number((lastSpeed - firstSpeed).toFixed(2));
+
+        return { sku, itemType, intervalMetrics, priceChangePct, totalSpeedDiff };
+      });
+    }, [selectedSkus, salesData, priceData, timeIntervals, selectedChannels, selectedAccounts, onlyPositive]);
+
+    const sortedAndFilteredRows = useMemo(() => {
+      let result = [...rawTableRows];
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        result = result.filter(r => r.sku.toLowerCase().includes(q) || r.itemType.toLowerCase().includes(q));
+      }
+
+      if (sortConfig.key) {
+        result.sort((a, b) => {
+          let valA, valB;
+          if (sortConfig.key === 'sku') {
+            valA = a.sku; valB = b.sku;
+            return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          } else if (sortConfig.key === 'itemType') {
+            valA = a.itemType; valB = b.itemType;
+            return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          } else {
+            const mA = a.intervalMetrics.find(m => m.id === sortConfig.intervalId);
+            const mB = b.intervalMetrics.find(m => m.id === sortConfig.intervalId);
+            valA = mA ? (mA[sortConfig.key] ?? -999999) : -999999;
+            valB = mB ? (mB[sortConfig.key] ?? -999999) : -999999;
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+          }
+        });
+      }
+      return result;
+    }, [rawTableRows, searchQuery, sortConfig]);
+
+    const velocitySummary = useMemo(() => {
+      let speedUp = 0;
+      let speedDown = 0;
+      let speedFlat = 0;
+      let totalUpDiff = 0;
+      let totalDownDiff = 0;
+
+      sortedAndFilteredRows.forEach(r => {
+        if (r.totalSpeedDiff > 0) {
+          speedUp++;
+          totalUpDiff += r.totalSpeedDiff;
+        } else if (r.totalSpeedDiff < 0) {
+          speedDown++;
+          totalDownDiff += Math.abs(r.totalSpeedDiff);
+        } else {
+          speedFlat++;
+        }
+      });
+
+      const avgUp = speedUp > 0 ? (totalUpDiff / speedUp).toFixed(2) : '0.00';
+      const avgDown = speedDown > 0 ? (totalDownDiff / speedDown).toFixed(2) : '0.00';
+
+      return { speedUp, speedDown, speedFlat, avgUp, avgDown };
+    }, [sortedAndFilteredRows]);
+
+    const handleSort = (key, intervalId = null) => {
+      setSortConfig(prev => {
+        if (prev.key === key && prev.intervalId === intervalId) {
+          return { key, intervalId, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+        }
+        return { key, intervalId, direction: 'desc' };
+      });
+    };
+
+    const handleExportCSV = () => {
+      if (sortedAndFilteredRows.length === 0) {
+        alert('当前暂无可导出的数据');
+        return;
+      }
+
+      let headerRow1 = ['基础信息', ''];
+      let headerRow2 = ['SKU', '品类'];
+
+      timeIntervals.forEach((inter, idx) => {
+        if (idx === 0) {
+          headerRow1.push(inter.label, '', '');
+          headerRow2.push('价格($)', '销量(件)', '日均出货速度(件/天)');
+        } else {
+          headerRow1.push(inter.label, '', '', '');
+          headerRow2.push('价格($)', '销量(件)', '日均出货速度(件/天)', 'Diff(vs上区间)');
+        }
+      });
+
+      const csvContent = [];
+      csvContent.push(headerRow1.join(','));
+      csvContent.push(headerRow2.join(','));
+
+      sortedAndFilteredRows.forEach(r => {
+        const row = [r.sku, r.itemType];
+        r.intervalMetrics.forEach((m, idx) => {
+          row.push(m.activePrice.toFixed(2));
+          row.push(m.count.toFixed(2));
+          row.push(m.avgSpeed.toFixed(2));
+          if (idx > 0) {
+            row.push(m.diffWithPrev !== null ? (m.diffWithPrev >= 0 ? `+${m.diffWithPrev.toFixed(2)}` : m.diffWithPrev.toFixed(2)) : '-');
+          }
+        });
+        csvContent.push(row.map(val => `"${val}"`).join(','));
+      });
+
+      const blob = new Blob(['\uFEFF' + csvContent.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Voltz_Toys_Price_Sales_Report_${CURRENT_REV}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadRevHistory = () => {
+      const blob = new Blob([REV_HISTORY_TEXT], { type: 'text/plain;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Voltz_Toys_Rev_History_${CURRENT_REV}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    // TAB 2 单 SKU 阶梯分析
+    useEffect(() => {
+      if (activeTab !== 'tab2') return;
+
+      const timer = setTimeout(() => {
+        if (!chartRef.current) return;
+        if (!chartInst.current) {
+          chartInst.current = echarts.init(chartRef.current);
+        }
+
+        const currentDetail = sortedAndFilteredRows.find(r => r.sku === detailSku) || sortedAndFilteredRows[0];
+        const xAxisLabels = timeIntervals.map(t => t.label);
+        const barData = currentDetail?.intervalMetrics.map(m => m.avgSpeed) || [0, 0];
+        const lineData = currentDetail?.intervalMetrics.map(m => m.activePrice) || [100, 100];
+
+        const option = {
+          backgroundColor: '#0f172a',
+          textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross', lineStyle: { color: '#475569' } },
+            backgroundColor: '#1e293b',
+            borderColor: '#475569',
+            textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+          },
+          legend: {
+            data: ['生效价格 (阶梯)', '区间日均出货速度 (AVG Count/DAY)'],
+            top: 10,
+            textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+          },
+          grid: { left: '4%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+          xAxis: {
+            type: 'category',
+            data: xAxisLabels,
+            axisLine: { lineStyle: { color: '#475569' } },
+            axisLabel: { color: '#94a3b8', fontSize: 12, fontFamily: '"Calibre", "Calibri"' }
+          },
+          yAxis: [
+            {
+              type: 'value',
+              name: '价格 ($)',
+              position: 'left',
+              axisLabel: { formatter: '${value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
+              splitLine: { show: false }
+            },
+            {
+              type: 'value',
+              name: '日均销量 (件/天)',
+              position: 'right',
+              axisLabel: { formatter: '{value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
+              splitLine: { lineStyle: { type: 'dashed', color: 'rgba(71,85,105,0.4)' } }
+            }
+          ],
+          series: [
+            {
+              name: '区间日均出货速度 (AVG Count/DAY)',
+              type: 'bar',
+              yAxisIndex: 1,
+              barWidth: '35%',
+              data: barData,
+              itemStyle: { color: '#38bdf8', borderRadius: [4, 4, 0, 0] },
+              label: {
+                show: true,
+                position: 'top',
+                formatter: (params) => Number(params.value).toFixed(2) + ' 件/天',
+                color: '#38bdf8',
+                fontWeight: 700,
+                fontFamily: '"Calibre", "Calibri"'
+              }
+            },
+            {
+              name: '生效价格 (阶梯)',
+              type: 'line',
+              step: 'end',
+              yAxisIndex: 0,
+              data: lineData,
+              lineStyle: { width: 3, color: '#f59e0b' },
+              itemStyle: { color: '#f59e0b', borderWidth: 2, borderColor: '#0f172a' }
+            }
+          ]
+        };
+
+        chartInst.current.setOption(option, true);
+        chartInst.current.resize();
+      }, 50);
+
+      const handleResize = () => chartInst.current?.resize();
+      window.addEventListener('resize', handleResize);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', handleResize);
+      };
+    }, [activeTab, detailSku, sortedAndFilteredRows, timeIntervals]);
+
+    // TAB 3 全局洞察图表
+    useEffect(() => {
+      if (activeTab !== 'tab3') return;
+
+      const timer = setTimeout(() => {
+        // 1. 散点象限图
+        if (scatterRef.current) {
+          if (!scatterInst.current) scatterInst.current = echarts.init(scatterRef.current);
+
+          const scatterData = sortedAndFilteredRows.map(r => [
+            r.priceChangePct,
+            r.totalSpeedDiff,
+            r.sku,
+            r.itemType
+          ]);
+
+          scatterInst.current.setOption({
+            backgroundColor: '#0f172a',
+            textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+            title: {
+              text: '价格变动百分比 vs 出货速度变动相关性象限图',
+              subtext: '左上：降价大幅起量 (高弹性促销) | 左下：降价未见起量 (虚弱SKU) | 右上：提价依然强劲 (品牌溢价)',
+              textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              left: 10, top: 10
+            },
+            tooltip: {
+              trigger: 'item',
+              backgroundColor: '#1e293b',
+              borderColor: '#475569',
+              textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              formatter: (params) => {
+                const [pct, diff, sku, type] = params.value;
+                return `<b>SKU: ${sku}</b> (${type})<br/>调价变动率: <b>${pct > 0 ? '+' + pct : pct}%</b><br/>出货速度差: <b>${diff > 0 ? '+' + diff : diff} 件/天</b>`;
+              }
+            },
+            grid: { left: '5%', right: '5%', bottom: '12%', top: '22%', containLabel: true },
+            xAxis: {
+              name: '调价幅度 (%)',
+              nameLocation: 'middle',
+              nameGap: 28,
+              nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+              axisLine: { lineStyle: { color: '#475569' } },
+              axisLabel: { color: '#94a3b8', formatter: '{value}%', fontFamily: '"Calibre", "Calibri"' }
+            },
+            yAxis: {
+              name: '速度变化 (件/天)',
+              nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+              axisLine: { lineStyle: { color: '#475569' } },
+              axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' }
+            },
+            series: [{
+              type: 'scatter',
+              symbolSize: 18,
+              data: scatterData,
+              itemStyle: {
+                color: (param) => {
+                  const diff = param.value[1];
+                  return diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#94a3b8');
+                },
+                shadowBlur: 8,
+                shadowColor: 'rgba(0,0,0,0.5)'
+              },
+              label: {
+                show: true,
+                formatter: (p) => p.value[2],
+                position: 'top',
+                color: '#cbd5e1',
+                fontSize: 11,
+                fontFamily: '"Calibre", "Calibri"'
+              },
+              markLine: {
+                lineStyle: { type: 'solid', color: '#64748b', width: 1.5 },
+                data: [{ xAxis: 0 }, { yAxis: 0 }]
+              }
+            }]
+          }, true);
+          scatterInst.current.resize();
+        }
+
+        // 2. 调价区间出货速度差对比图
+        if (velocityDiffChartRef.current && timeIntervals.length > 1) {
+          if (!velocityDiffChartInst.current) {
+            velocityDiffChartInst.current = echarts.init(velocityDiffChartRef.current);
+          }
+
+          const currInter = timeIntervals[selectedCompareIdx] || timeIntervals[1];
+          const prevInter = timeIntervals[selectedCompareIdx - 1] || timeIntervals[0];
+
+          const currDays = Math.max(1, Math.ceil((new Date(currInter.end) - new Date(currInter.start)) / 86400000) + 1);
+          const prevDays = Math.max(1, Math.ceil((new Date(prevInter.end) - new Date(prevInter.start)) / 86400000) + 1);
+
+          const allSkusList = sortedAndFilteredRows.map(r => r.sku);
+
+          const calcDiffForChannel = (filterFn) => {
+            return allSkusList.map(sku => {
+              const prevCount = salesData
+                .filter(s => s.sku === sku && filterFn(s) && s.date >= prevInter.start && s.date <= prevInter.end && (!onlyPositive || isPositiveStatus(s.status)))
+                .reduce((acc, c) => acc + c.qty, 0);
+
+              const currCount = salesData
+                .filter(s => s.sku === sku && filterFn(s) && s.date >= currInter.start && s.date <= currInter.end && (!onlyPositive || isPositiveStatus(s.status)))
+                .reduce((acc, c) => acc + c.qty, 0);
+
+              const vPrev = prevCount / prevDays;
+              const vCurr = currCount / currDays;
+              return Number((vCurr - vPrev).toFixed(2));
+            });
+          };
+
+          const diffAmazonAll = calcDiffForChannel(s => s.channel === 'Amazon');
+          const diffAmazonVoltz = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'Voltz');
+          const diffAmazonDaan = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'DAAN');
+          const diffShopifyVoltz = calcDiffForChannel(s => s.channel === 'Shopify' && s.account === 'Voltz');
+
+          const diffOption = {
+            backgroundColor: '#0f172a',
+            textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+            title: {
+              text: `各渠道出货速度变动对比 (${currInter.label} vs ${prevInter.label})`,
+              subtext: '纵轴：出货速度差值 (件/天，正数代表加速，负数代表减速) | 横轴：产品 SKU',
+              textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              left: 10, top: 10
+            },
+            tooltip: {
+              trigger: 'axis',
+              axisPointer: { type: 'shadow' },
+              backgroundColor: '#1e293b',
+              borderColor: '#475569',
+              textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+              formatter: (params) => {
+                let html = `<b>SKU: ${params[0].axisValue}</b><br/>`;
+                params.forEach(p => {
+                  const val = p.value;
+                  const sign = val > 0 ? '+' : '';
+                  html += `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${sign}${val} 件/天</b><br/>`;
+                });
+                return html;
+              }
+            },
+            legend: {
+              data: ['Amazon (全平台)', 'Amazon Voltz', 'Amazon DAAN', 'Shopify Voltz'],
+              top: 10,
+              right: 20,
+              textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+            },
+            grid: { left: '4%', right: '4%', bottom: '15%', top: '20%', containLabel: true },
+            xAxis: {
+              type: 'category',
+              data: allSkusList,
+              axisLabel: { color: '#94a3b8', interval: 0, rotate: 30, fontSize: 12, fontFamily: '"Calibre", "Calibri"' },
+              axisLine: { lineStyle: { color: '#475569' } }
+            },
+            yAxis: {
+              type: 'value',
+              name: '速度差 (件/天)',
+              axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' },
+              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }
+            },
+            series: [
+              {
+                name: 'Amazon (全平台)',
+                type: 'bar',
+                data: diffAmazonAll,
+                itemStyle: { color: '#f59e0b', borderRadius: [3, 3, 0, 0] }
+              },
+              {
+                name: 'Amazon Voltz',
+                type: 'bar',
+                data: diffAmazonVoltz,
+                itemStyle: { color: '#38bdf8', borderRadius: [3, 3, 0, 0] }
+              },
+              {
+                name: 'Amazon DAAN',
+                type: 'bar',
+                data: diffAmazonDaan,
+                itemStyle: { color: '#a855f7', borderRadius: [3, 3, 0, 0] }
+              },
+              {
+                name: 'Shopify Voltz',
+                type: 'bar',
+                data: diffShopifyVoltz,
+                itemStyle: { color: '#10b981', borderRadius: [3, 3, 0, 0] }
+              }
+            ]
+          };
+
+          velocityDiffChartInst.current.setOption(diffOption, true);
+          velocityDiffChartInst.current.resize();
+        }
+      }, 60);
+
+      const handleAllResize = () => {
+        scatterInst.current?.resize();
+        velocityDiffChartInst.current?.resize();
+      };
+      window.addEventListener('resize', handleAllResize);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', handleAllResize);
+      };
+    }, [activeTab, sortedAndFilteredRows, salesData, onlyPositive, selectedCompareIdx, timeIntervals]);
+
+    const renderSortArrow = (key, intervalId = null) => {
+      if (sortConfig.key === key && sortConfig.intervalId === intervalId) {
+        return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+      }
+      return ' ↕';
+    };
+
+    return (
+      <div>
+        {/* 头部与版本号 */}
+        <div className="header">
+          <div>
+            <div className="header-title-row">
+              <h1>Voltz Toys 出货速度与调价复盘系统</h1>
+              <span className="rev-badge">REV: {CURRENT_REV}</span>
+            </div>
+            <p>Multi-Interval Pricing & Daily Shipping Velocity Analytics Dashboard</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn" onClick={() => setIsRevModalOpen(true)}>
+              📜 REV History
+            </button>
+            <button className="btn btn-success" onClick={() => setIsAddModalOpen(true)}>
+              ➕ 添加 PRODUCT
+            </button>
+            <button className="btn btn-danger" onClick={handleResetStorage} title="重置本地持久化缓存">
+              🗑️ 重置数据
+            </button>
+          </div>
+        </div>
+
+        {/* 顶部多选与状态控制条 */}
+        <div className="control-panel">
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <MultiSelect title="Platform" options={allChannels} selected={selectedChannels} onChange={setSelectedChannels} />
+            <div style={{ width: '1px', height: '24px', background: 'var(--border)' }}></div>
+            <MultiSelect title="Vendor" options={allAccounts} selected={selectedAccounts} onChange={setSelectedAccounts} />
+            <div style={{ width: '1px', height: '24px', background: 'var(--border)' }}></div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={onlyPositive}
+                onChange={e => setOnlyPositive(e.target.checked)}
+                style={{ accentColor: 'var(--primary)' }}
+              />
+              <span>仅有效发货 (PositiveStatus)</span>
+            </label>
+          </div>
+
+          <div className="nav-tabs">
+            <button className={`tab-btn ${activeTab === 'tab1' ? 'active' : ''}`} onClick={() => setActiveTab('tab1')}>
+              多调价对比矩阵
+            </button>
+            <button className={`tab-btn ${activeTab === 'tab2' ? 'active' : ''}`} onClick={() => setActiveTab('tab2')}>
+              单 SKU 阶梯图表 ({detailSku})
+            </button>
+            <button className={`tab-btn ${activeTab === 'tab3' ? 'active' : ''}`} onClick={() => setActiveTab('tab3')}>
+              全局洞察与渠道弹性对比 📊
+            </button>
+          </div>
+        </div>
+
+        {/* 速度涨跌统计卡片栏 */}
+        <div className="summary-grid">
+          <div className="summary-card" style={{ borderLeft: '4px solid var(--success)' }}>
+            <div>
+              <div className="title">出货速度上升 (Speed Up)</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                平均提速: <strong style={{ color: 'var(--success)' }}>+{velocitySummary.avgUp} 件/天</strong>
+              </div>
+            </div>
+            <div className="val" style={{ color: 'var(--success)' }}>{velocitySummary.speedUp} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+          </div>
+
+          <div className="summary-card" style={{ borderLeft: '4px solid var(--danger)' }}>
+            <div>
+              <div className="title">出货速度放缓 (Speed Down)</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                平均减速: <strong style={{ color: 'var(--danger)' }}>-{velocitySummary.avgDown} 件/天</strong>
+              </div>
+            </div>
+            <div className="val" style={{ color: 'var(--danger)' }}>{velocitySummary.speedDown} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+          </div>
+
+          <div className="summary-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+            <div>
+              <div className="title">出货持平/无波动 (Flat)</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                占当前库容: <strong style={{ color: 'var(--primary)' }}>{((velocitySummary.speedFlat / Math.max(sortedAndFilteredRows.length, 1)) * 100).toFixed(0)}%</strong>
+              </div>
+            </div>
+            <div className="val" style={{ color: 'var(--text-muted)' }}>{velocitySummary.speedFlat} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+          </div>
+
+          <div className="summary-card" style={{ borderLeft: '4px solid var(--warning)' }}>
+            <div>
+              <div className="title">纳入复盘产品总量</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                已自动保存: <strong style={{ color: 'var(--warning)' }}>{salesData.length} 笔订单</strong>
+              </div>
+            </div>
+            <div className="val" style={{ color: '#fff' }}>{sortedAndFilteredRows.length} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+          </div>
+        </div>
+
+        {/* CSV 上传通道与导出/搜索行 */}
+        <div className="control-panel" style={{ padding: '0.85rem 1.25rem' }}>
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>1. 订单 Raw Data:</span>
+              <label className="btn" style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}>
+                <span>📁 上传 CSV</span>
+                <input type="file" accept=".csv" onChange={e => handleCsvUpload(e, 'sales')} style={{ display: 'none' }} />
+              </label>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>({salesData.length} 条已缓存)</span>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>2. 调价记录:</span>
+              <label className="btn" style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}>
+                <span>📁 上传 CSV</span>
+                <input type="file" accept=".csv" onChange={e => handleCsvUpload(e, 'prices')} style={{ display: 'none' }} />
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="🔍 搜索 SKU / 品类..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                background: '#0f172a',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '0.45rem 0.75rem',
+                color: '#fff',
+                fontSize: '0.85rem',
+                width: '180px'
+              }}
+            />
+            <button className="btn btn-primary" onClick={handleExportCSV}>
+              📥 导出分析报表 (CSV)
+            </button>
+          </div>
+        </div>
+
+        {/* TAB 1: 汇总对比表格 */}
+        {activeTab === 'tab1' && (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr style={{ background: '#1e293b', textAlign: 'center', fontWeight: 700 }}>
+                  <th colSpan="2" style={{ textAlign: 'left', borderRight: '1px solid var(--border)' }}>基础产品信息</th>
+                  {timeIntervals.map((inter, idx) => (
+                    <th
+                      key={inter.id}
+                      colSpan={idx === 0 ? 3 : 4}
+                      style={{
+                        borderRight: '1px solid var(--border)',
+                        background: 'rgba(56, 189, 248, 0.08)',
+                        color: 'var(--primary)'
+                      }}
+                    >
+                      {inter.label} {idx === 0 ? '(基准期)' : ''}
+                    </th>
+                  ))}
+                  <th style={{ textAlign: 'right' }}>操作</th>
+                </tr>
+                <tr style={{ background: '#0f172a', fontWeight: 600, fontSize: '0.78rem' }}>
+                  <th onClick={() => handleSort('sku')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                    SKU {renderSortArrow('sku')}
+                  </th>
+                  <th onClick={() => handleSort('itemType')} style={{ textAlign: 'left', borderRight: '1px solid var(--border)', cursor: 'pointer' }}>
+                    品类 {renderSortArrow('itemType')}
+                  </th>
+
+                  {timeIntervals.map((inter, idx) => (
+                    <React.Fragment key={inter.id}>
+                      <th onClick={() => handleSort('activePrice', inter.id)} style={{ cursor: 'pointer' }}>
+                        价格 {renderSortArrow('activePrice', inter.id)}
+                      </th>
+                      <th onClick={() => handleSort('count', inter.id)} style={{ cursor: 'pointer' }}>
+                        销量(件) {renderSortArrow('count', inter.id)}
+                      </th>
+                      <th onClick={() => handleSort('avgSpeed', inter.id)} style={{ cursor: 'pointer', color: 'var(--primary)', borderRight: idx === 0 ? '1px solid var(--border)' : 'none' }}>
+                        日均速度 {renderSortArrow('avgSpeed', inter.id)}
+                      </th>
+                      {idx > 0 && (
+                        <th onClick={() => handleSort('diffWithPrev', inter.id)} style={{ cursor: 'pointer', color: 'var(--warning)', borderRight: '1px solid var(--border)' }}>
+                          Diff(vs上区间) {renderSortArrow('diffWithPrev', inter.id)}
+                        </th>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  <th style={{ textAlign: 'right' }}>详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedAndFilteredRows.map(row => (
+                  <tr key={row.sku}>
+                    <td style={{ textAlign: 'left', fontWeight: 700, color: '#fff' }}>{row.sku}</td>
+                    <td style={{ textAlign: 'left', borderRight: '1px solid rgba(71,85,105,0.4)' }}>
+                      <span className="tag-badge">{row.itemType}</span>
+                    </td>
+
+                    {row.intervalMetrics.map((m, idx) => (
+                      <React.Fragment key={m.id}>
+                        <td style={{ color: 'var(--warning)', fontWeight: 600 }}>${m.activePrice.toFixed(2)}</td>
+                        <td>{m.count.toFixed(2)}</td>
+                        <td style={{
+                          fontWeight: 700,
+                          color: 'var(--primary)',
+                          borderRight: idx === 0 ? '1px solid rgba(71,85,105,0.4)' : 'none'
+                        }}>
+                          {m.avgSpeed.toFixed(2)}
+                        </td>
+                        {idx > 0 && (
+                          <td style={{
+                            fontWeight: 700,
+                            borderRight: '1px solid rgba(71,85,105,0.4)'
+                          }}>
+                            {m.diffWithPrev !== null ? (
+                              <span style={{ color: m.diffWithPrev >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                {m.diffWithPrev >= 0 ? `+${m.diffWithPrev.toFixed(2)}` : m.diffWithPrev.toFixed(2)}
+                              </span>
+                            ) : '-'}
+                          </td>
+                        )}
+                      </React.Fragment>
+                    ))}
+
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        onClick={() => { setDetailSku(row.sku); setActiveTab('tab2'); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }}
+                      >
+                        深入图表 →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* TAB 2: 单 SKU 阶梯分析图表与时光机 */}
+        {activeTab === 'tab2' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>当前复盘商品</div>
+                  <select
+                    value={detailSku}
+                    onChange={e => setDetailSku(e.target.value)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '1.45rem',
+                      fontWeight: 800,
+                      marginTop: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {selectedSkus.map(s => <option key={s} value={s} style={{ background: 'var(--card-bg)' }}>{s}</option>)}
+                  </select>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>最新生效价格</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--emerald)' }}>
+                    ${getPriceAtDate(detailSku, '2099-12-31').toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>价格时光机验证器</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>T 日老价格，T+1 生效新价格</div>
+                  <input
+                    type="date"
+                    value={queryDate}
+                    onChange={e => setQueryDate(e.target.value)}
+                    style={{
+                      background: '#0f172a',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      color: '#fff',
+                      padding: '0.35rem 0.5rem',
+                      fontSize: '0.8rem',
+                      marginTop: '6px'
+                    }}
+                  />
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>执行价格</div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--primary)' }}>
+                    ${checkedPrice !== null ? checkedPrice.toFixed(2) : '--'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.5rem' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
+                  {detailSku} 调价阶梯与出货速度对比图
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  黄线：阶梯价格 | 蓝柱：日均出货速度 (件/天)
+                </span>
+              </div>
+              <div ref={chartRef} style={{ width: '100%', height: '420px', minHeight: '420px' }}></div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: 全局洞察与渠道出货速度差对比图 */}
+        {activeTab === 'tab3' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
+              <div ref={scatterRef} style={{ width: '100%', height: '380px' }}></div>
+            </div>
+
+            <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>
+                    📊 调价区间出货速度差对比 (Velocity Diff Analysis)
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>选择对比切片区间:</span>
+                    <select
+                      value={selectedCompareIdx}
+                      onChange={e => setSelectedCompareIdx(Number(e.target.value))}
+                      style={{
+                        background: '#1e293b',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: '#f8fafc',
+                        padding: '0.35rem 0.65rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {timeIntervals.map((inter, idx) => {
+                        if (idx === 0) return null;
+                        return (
+                          <option key={inter.id} value={idx}>
+                            {inter.label} vs {timeIntervals[idx - 1].label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  提示：点击图例可单独显示或隐藏特定渠道
+                </div>
+              </div>
+
+              <div ref={velocityDiffChartRef} style={{ width: '100%', height: '440px', minHeight: '440px' }}></div>
+            </div>
+          </div>
+        )}
+
+        {/* 底部修订版本管理栏 */}
+        <div className="footer-rev-bar">
+          <div>
+            当前系统构建版本：<code>REV: {CURRENT_REV}</code> (YYMMDDHHMM)
+          </div>
+          <div>
+            <button className="btn" onClick={handleDownloadRevHistory}>
+              📥 下载修订历史 (Rev History .txt)
+            </button>
+          </div>
+        </div>
+
+        {/* REV History 模态弹窗 */}
+        {isRevModalOpen && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1.5rem'
+          }}>
+            <div style={{
+              background: 'var(--card-bg)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              maxWidth: '720px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 20px 30px rgba(0,0,0,0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '85vh'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff' }}>系统版本修订历史 (Revision History)</h3>
+                <button onClick={() => setIsRevModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>×</button>
+              </div>
+
+              <pre style={{
+                margin: '1rem 0',
+                padding: '1rem',
+                background: '#0f172a',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--primary)',
+                fontFamily: '"Calibre", "Calibri", monospace',
+                fontSize: '0.85rem',
+                lineHeight: 1.5,
+                overflowY: 'auto',
+                flex: 1
+              }}>
+                {REV_HISTORY_TEXT}
+              </pre>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                <button className="btn" onClick={() => setIsRevModalOpen(false)}>关闭</button>
+                <button className="btn btn-primary" onClick={handleDownloadRevHistory}>📥 下载 .txt 文件</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 添加 Product 弹窗 */}
+        {isAddModalOpen && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1.5rem'
+          }}>
+            <div style={{
+              background: 'var(--card-bg)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 20px 30px rgba(0,0,0,0.6)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>添加新 PRODUCT</h3>
+                <button onClick={() => setIsAddModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>×</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', margin: '1rem 0' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>SKU 编码:</label>
+                  <input
+                    type="text"
+                    value={newSku}
+                    placeholder="例如: 86388"
+                    onChange={e => setNewSku(e.target.value)}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>品类 (Item Type):</label>
+                  <input
+                    type="text"
+                    value={newType}
+                    onChange={e => setNewType(e.target.value)}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>初始价格 ($):</label>
+                  <input
+                    type="number"
+                    value={newBasePrice}
+                    onChange={e => setNewBasePrice(e.target.value)}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                <button className="btn" onClick={() => setIsAddModalOpen(false)}>取消</button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const s = newSku.trim();
+                    if (!s) return;
+                    if (!selectedSkus.includes(s)) setSelectedSkus([...selectedSkus, s]);
+                    setPriceData(prev => [...prev, { sku: s, date: '2026-07-01', price: Number(newBasePrice) || 100, itemType: newType }]);
+                    setIsAddModalOpen(false);
+                    setNewSku('');
+                  }}
+                >
+                  确认添加
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  }
+
+  ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
