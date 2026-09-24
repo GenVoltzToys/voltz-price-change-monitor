@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>电商多调价周期出货分析系统 - REV 2609241940</title>
+  <title>电商多调价周期出货分析系统 - REV 2609242030</title>
   <!-- React & Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -30,7 +30,6 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
-    /* 英文和数字采用 Calibre/Calibri，中文字体采用 Microsoft YaHei */
     body {
       font-family: "Calibre", "Calibri", "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", "微软雅黑", sans-serif;
       background: var(--bg);
@@ -234,6 +233,11 @@
       color: #fff;
     }
 
+    tr.row-disabled td {
+      opacity: 0.35;
+      background: rgba(15, 23, 42, 0.6);
+    }
+
     .tag-badge {
       display: inline-block;
       padding: 0.15rem 0.45rem;
@@ -296,27 +300,25 @@
 <script type="text/babel">
   const { useState, useMemo, useEffect, useRef } = React;
 
-  const CURRENT_REV = "2609241940";
+  const CURRENT_REV = "2609242030";
   const STORAGE_KEY_SALES = "VOLTZ_PRICE_SALES_LAST_SALES_DATA";
   const STORAGE_KEY_PRICES = "VOLTZ_PRICE_SALES_LAST_PRICE_DATA";
+  const STORAGE_KEY_ENABLED_SKUS = "VOLTZ_PRICE_SALES_ENABLED_SKUS";
 
   const REV_HISTORY_TEXT = 
 `================================================================================
 VOLTZ TOYS PRICE & SALES PACE DUAL-DIMENSION SYSTEM - REVISION HISTORY
 Current Version: REV ${CURRENT_REV}
-Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
+Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
 ================================================================================
 
-[REV: 2609241940] - 2026-09-24 19:40
-- 数据持久化升级：自动将最后一次上传的 Raw Data 订单明细与调价记录持久化到 localStorage。
-- 页面再次打开或刷新默认加载最后一次上传的真实数据，并提供一键重置功能。
-- 字体系统重构：英文字符与所有数字指标全面统一采用 Calibre / Calibri 字体；中文字体严格回退为 Microsoft YaHei（微软雅黑）。
-- 图表字体统一：ECharts 全局字重与文字族统一采用 Calibre 与 Microsoft YaHei。
+[REV: 2609242030] - 2026-09-24 20:30
+- Bug修复：彻底修复在 Tab 1 关闭任意产品后 Tab 3 图表空白的重大缺陷。
+- 根因排查：废弃 DOM 节点的条件渲染销毁，采用 CSS 常驻模式与自动 resize，解决 ECharts 幽灵 Canvas 实例丢失问题。
+- 图表联动：Tab 3 象限散点图与各渠道对比图严格对齐已勾选产品，实现毫秒级响应重算。
 
-[REV: 2609241900] - 2026-09-24 19:00
-- 重点重构：重构全局分析图表，支持选择指定调价区间与上一区间对比。
-- 坐标定义：横轴 (X) 为产品 SKU，纵轴 (Y) 为出货速度差值 (件/天)。
-- 渠道细分：在同一个图表内支持对 Amazon(全平台)、Amazon Voltz、Amazon DAAN 与 Shopify Voltz 四项通道进行同屏出货速度差对比。
+[REV: 2609242000] - 2026-09-24 20:00
+- 产品布尔过滤：Tab 1 每一行新增独立勾选框，支持动态剔除产品。
 ================================================================================`;
 
   function parseCSV(text) {
@@ -356,7 +358,6 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
     return rows;
   }
 
-  // 默认初始 24 款产品价格底表[cite: 1]
   const DEFAULT_PRICE_HISTORY = [
     { sku: '81155J', date: '2026-07-01', price: 105.59, itemType: 'Ride-on Car' },
     { sku: '82032',  date: '2026-07-01', price: 439.99, itemType: 'Ride-on Car' },
@@ -495,7 +496,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
   }
 
   function App() {
-    // --- 本地持久化加载 (Default 存储最后一次上传的数据) ---
+    // 数据持久化初始化
     const [salesData, setSalesData] = useState(() => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY_SALES);
@@ -522,7 +523,17 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       '80109', '81968', '88638', '88888', '80732', '80017',
       '80688', '88889', '88621', '88626', '86988', '8CA01'
     ], []);
-    const [selectedSkus, setSelectedSkus] = useState(defaultSkus);
+    const [allSkusList, setAllSkusList] = useState(defaultSkus);
+
+    // 勾选状态持久化
+    const [enabledSkus, setEnabledSkus] = useState(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_ENABLED_SKUS);
+        return saved ? JSON.parse(saved) : defaultSkus;
+      } catch (e) {
+        return defaultSkus;
+      }
+    });
 
     const [searchQuery, setSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc', intervalId: null });
@@ -547,6 +558,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
 
     const [selectedCompareIdx, setSelectedCompareIdx] = useState(1);
 
+    // 图表 DOM 引用与 ECharts 实例引用
     const chartRef = useRef(null);
     const chartInst = useRef(null);
     const scatterRef = useRef(null);
@@ -560,34 +572,44 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       return valid.includes(status);
     };
 
-    // 自动持久化保存数据到 localStorage
+    // 存储持久化
     useEffect(() => {
       try {
-        if (salesData.length > 0) {
-          localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(salesData));
-        }
-      } catch (e) {
-        console.warn('localStorage 限额或不可用', e);
-      }
+        if (salesData.length > 0) localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(salesData));
+      } catch (e) {}
     }, [salesData]);
 
     useEffect(() => {
       try {
         localStorage.setItem(STORAGE_KEY_PRICES, JSON.stringify(priceData));
-      } catch (e) {
-        console.warn('localStorage 限额或不可用', e);
-      }
+      } catch (e) {}
     }, [priceData]);
 
-    // 重置持久化缓存数据
+    useEffect(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY_ENABLED_SKUS, JSON.stringify(enabledSkus));
+      } catch (e) {}
+    }, [enabledSkus]);
+
     const handleResetStorage = () => {
-      if (confirm('确认清空已保存的上传数据并恢复默认初始库吗？')) {
+      if (confirm('确认清空已保存的上传数据与选择状态，恢复默认初始库吗？')) {
         localStorage.removeItem(STORAGE_KEY_SALES);
         localStorage.removeItem(STORAGE_KEY_PRICES);
+        localStorage.removeItem(STORAGE_KEY_ENABLED_SKUS);
         setSalesData([]);
         setPriceData(DEFAULT_PRICE_HISTORY);
+        setAllSkusList(defaultSkus);
+        setEnabledSkus(defaultSkus);
         alert('已成功重置！');
       }
+    };
+
+    const toggleSkuEnabled = (sku) => {
+      setEnabledSkus(prev => prev.includes(sku) ? prev.filter(s => s !== sku) : [...prev, sku]);
+    };
+
+    const toggleSelectAll = (checked) => {
+      setEnabledSkus(checked ? [...allSkusList] : []);
     };
 
     const getPriceAtDate = (sku, targetDate) => {
@@ -724,8 +746,9 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       reader.readAsText(file);
     };
 
+    // Tab 1 全量数据
     const rawTableRows = useMemo(() => {
-      return selectedSkus.map(sku => {
+      return allSkusList.map(sku => {
         const itemType = priceData.find(p => p.sku === sku)?.itemType || 'Ride-on Car';
 
         const skuSales = salesData.filter(s =>
@@ -770,10 +793,13 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
         const lastSpeed = intervalMetrics[intervalMetrics.length - 1]?.avgSpeed || 0;
         const totalSpeedDiff = Number((lastSpeed - firstSpeed).toFixed(2));
 
-        return { sku, itemType, intervalMetrics, priceChangePct, totalSpeedDiff };
-      });
-    }, [selectedSkus, salesData, priceData, timeIntervals, selectedChannels, selectedAccounts, onlyPositive]);
+        const isEnabled = enabledSkus.includes(sku);
 
+        return { sku, itemType, intervalMetrics, priceChangePct, totalSpeedDiff, isEnabled };
+      });
+    }, [allSkusList, salesData, priceData, timeIntervals, selectedChannels, selectedAccounts, onlyPositive, enabledSkus]);
+
+    // 搜索与排序
     const sortedAndFilteredRows = useMemo(() => {
       let result = [...rawTableRows];
 
@@ -803,6 +829,11 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       return result;
     }, [rawTableRows, searchQuery, sortConfig]);
 
+    // 仅已勾选的产品参与 Tab 3 的计算和渲染
+    const activeEnabledRows = useMemo(() => {
+      return sortedAndFilteredRows.filter(r => r.isEnabled);
+    }, [sortedAndFilteredRows]);
+
     const velocitySummary = useMemo(() => {
       let speedUp = 0;
       let speedDown = 0;
@@ -810,7 +841,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       let totalUpDiff = 0;
       let totalDownDiff = 0;
 
-      sortedAndFilteredRows.forEach(r => {
+      activeEnabledRows.forEach(r => {
         if (r.totalSpeedDiff > 0) {
           speedUp++;
           totalUpDiff += r.totalSpeedDiff;
@@ -825,8 +856,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       const avgUp = speedUp > 0 ? (totalUpDiff / speedUp).toFixed(2) : '0.00';
       const avgDown = speedDown > 0 ? (totalDownDiff / speedDown).toFixed(2) : '0.00';
 
-      return { speedUp, speedDown, speedFlat, avgUp, avgDown };
-    }, [sortedAndFilteredRows]);
+      return { speedUp, speedDown, speedFlat, avgUp, avgDown, totalActive: activeEnabledRows.length };
+    }, [activeEnabledRows]);
 
     const handleSort = (key, intervalId = null) => {
       setSortConfig(prev => {
@@ -838,8 +869,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
     };
 
     const handleExportCSV = () => {
-      if (sortedAndFilteredRows.length === 0) {
-        alert('当前暂无可导出的数据');
+      if (activeEnabledRows.length === 0) {
+        alert('当前暂无可导出的已勾选数据');
         return;
       }
 
@@ -860,7 +891,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       csvContent.push(headerRow1.join(','));
       csvContent.push(headerRow2.join(','));
 
-      sortedAndFilteredRows.forEach(r => {
+      activeEnabledRows.forEach(r => {
         const row = [r.sku, r.itemType];
         r.intervalMetrics.forEach((m, idx) => {
           row.push(m.activePrice.toFixed(2));
@@ -892,305 +923,306 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
       URL.revokeObjectURL(url);
     };
 
-    // TAB 2 单 SKU 阶梯分析
-    useEffect(() => {
-      if (activeTab !== 'tab2') return;
+    // --- TAB 2 图表渲染 ---
+    const renderTab2Chart = () => {
+      if (!chartRef.current) return;
+      if (!chartInst.current) {
+        chartInst.current = echarts.init(chartRef.current);
+      }
 
-      const timer = setTimeout(() => {
-        if (!chartRef.current) return;
-        if (!chartInst.current) {
-          chartInst.current = echarts.init(chartRef.current);
+      const currentDetail = sortedAndFilteredRows.find(r => r.sku === detailSku) || sortedAndFilteredRows[0];
+      const xAxisLabels = timeIntervals.map(t => t.label);
+      const barData = currentDetail?.intervalMetrics.map(m => m.avgSpeed) || [0, 0];
+      const lineData = currentDetail?.intervalMetrics.map(m => m.activePrice) || [100, 100];
+
+      const option = {
+        backgroundColor: '#0f172a',
+        textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'cross', lineStyle: { color: '#475569' } },
+          backgroundColor: '#1e293b',
+          borderColor: '#475569',
+          textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+        },
+        legend: {
+          data: ['生效价格 (阶梯)', '区间日均出货速度 (AVG Count/DAY)'],
+          top: 10,
+          textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+        },
+        grid: { left: '4%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: xAxisLabels,
+          axisLine: { lineStyle: { color: '#475569' } },
+          axisLabel: { color: '#94a3b8', fontSize: 12, fontFamily: '"Calibre", "Calibri"' }
+        },
+        yAxis: [
+          {
+            type: 'value',
+            name: '价格 ($)',
+            position: 'left',
+            axisLabel: { formatter: '${value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
+            splitLine: { show: false }
+          },
+          {
+            type: 'value',
+            name: '日均销量 (件/天)',
+            position: 'right',
+            axisLabel: { formatter: '{value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
+            splitLine: { lineStyle: { type: 'dashed', color: 'rgba(71,85,105,0.4)' } }
+          }
+        ],
+        series: [
+          {
+            name: '区间日均出货速度 (AVG Count/DAY)',
+            type: 'bar',
+            yAxisIndex: 1,
+            barWidth: '35%',
+            data: barData,
+            itemStyle: { color: '#38bdf8', borderRadius: [4, 4, 0, 0] },
+            label: {
+              show: true,
+              position: 'top',
+              formatter: (params) => Number(params.value).toFixed(2) + ' 件/天',
+              color: '#38bdf8',
+              fontWeight: 700,
+              fontFamily: '"Calibre", "Calibri"'
+            }
+          },
+          {
+            name: '生效价格 (阶梯)',
+            type: 'line',
+            step: 'end',
+            yAxisIndex: 0,
+            data: lineData,
+            lineStyle: { width: 3, color: '#f59e0b' },
+            itemStyle: { color: '#f59e0b', borderWidth: 2, borderColor: '#0f172a' }
+          }
+        ]
+      };
+
+      chartInst.current.setOption(option, true);
+      chartInst.current.resize();
+    };
+
+    // --- TAB 3 图表渲染 (保证 DOM 常驻，彻底消除空白异常) ---
+    const renderTab3Charts = () => {
+      // 1. 散点象限图
+      if (scatterRef.current) {
+        if (!scatterInst.current) {
+          scatterInst.current = echarts.init(scatterRef.current);
         }
 
-        const currentDetail = sortedAndFilteredRows.find(r => r.sku === detailSku) || sortedAndFilteredRows[0];
-        const xAxisLabels = timeIntervals.map(t => t.label);
-        const barData = currentDetail?.intervalMetrics.map(m => m.avgSpeed) || [0, 0];
-        const lineData = currentDetail?.intervalMetrics.map(m => m.activePrice) || [100, 100];
+        const scatterData = activeEnabledRows.map(r => [
+          r.priceChangePct,
+          r.totalSpeedDiff,
+          r.sku,
+          r.itemType
+        ]);
 
-        const option = {
+        scatterInst.current.setOption({
           backgroundColor: '#0f172a',
           textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+          title: {
+            text: `价格变动百分比 vs 出货速度变动相关性象限图 (已选 ${activeEnabledRows.length} 款)`,
+            subtext: '左上：降价大幅起量 (高弹性促销) | 左下：降价未见起量 (虚弱SKU) | 右上：提价依然强劲 (品牌溢价)',
+            textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            left: 10, top: 10
+          },
           tooltip: {
-            trigger: 'axis',
-            axisPointer: { type: 'cross', lineStyle: { color: '#475569' } },
+            trigger: 'item',
             backgroundColor: '#1e293b',
             borderColor: '#475569',
-            textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
+            textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            formatter: (params) => {
+              if (!params.value) return '';
+              const [pct, diff, sku, type] = params.value;
+              return `<b>SKU: ${sku}</b> (${type})<br/>调价变动率: <b>${pct > 0 ? '+' + pct : pct}%</b><br/>出货速度差: <b>${diff > 0 ? '+' + diff : diff} 件/天</b>`;
+            }
+          },
+          grid: { left: '5%', right: '5%', bottom: '12%', top: '22%', containLabel: true },
+          xAxis: {
+            name: '调价幅度 (%)',
+            nameLocation: 'middle',
+            nameGap: 28,
+            nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+            axisLine: { lineStyle: { color: '#475569' } },
+            axisLabel: { color: '#94a3b8', formatter: '{value}%', fontFamily: '"Calibre", "Calibri"' }
+          },
+          yAxis: {
+            name: '速度变化 (件/天)',
+            nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
+            axisLine: { lineStyle: { color: '#475569' } },
+            axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' }
+          },
+          series: [{
+            type: 'scatter',
+            symbolSize: 18,
+            data: scatterData,
+            itemStyle: {
+              color: (param) => {
+                const diff = param.value ? param.value[1] : 0;
+                return diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#94a3b8');
+              },
+              shadowBlur: 8,
+              shadowColor: 'rgba(0,0,0,0.5)'
+            },
+            label: {
+              show: true,
+              formatter: (p) => p.value[2],
+              position: 'top',
+              color: '#cbd5e1',
+              fontSize: 11,
+              fontFamily: '"Calibre", "Calibri"'
+            }
+          }]
+        }, true);
+        scatterInst.current.resize();
+      }
+
+      // 2. 调价区间出货速度差对比图
+      if (velocityDiffChartRef.current && timeIntervals.length > 1) {
+        if (!velocityDiffChartInst.current) {
+          velocityDiffChartInst.current = echarts.init(velocityDiffChartRef.current);
+        }
+
+        const currInter = timeIntervals[selectedCompareIdx] || timeIntervals[1];
+        const prevInter = timeIntervals[selectedCompareIdx - 1] || timeIntervals[0];
+
+        const currDays = Math.max(1, Math.ceil((new Date(currInter.end) - new Date(currInter.start)) / 86400000) + 1);
+        const prevDays = Math.max(1, Math.ceil((new Date(prevInter.end) - new Date(prevInter.start)) / 86400000) + 1);
+
+        const activeSkusList = activeEnabledRows.map(r => r.sku);
+
+        const calcDiffForChannel = (filterFn) => {
+          return activeSkusList.map(sku => {
+            const prevCount = salesData
+              .filter(s => s.sku === sku && filterFn(s) && s.date >= prevInter.start && s.date <= prevInter.end && (!onlyPositive || isPositiveStatus(s.status)))
+              .reduce((acc, c) => acc + c.qty, 0);
+
+            const currCount = salesData
+              .filter(s => s.sku === sku && filterFn(s) && s.date >= currInter.start && s.date <= currInter.end && (!onlyPositive || isPositiveStatus(s.status)))
+              .reduce((acc, c) => acc + c.qty, 0);
+
+            const vPrev = prevCount / prevDays;
+            const vCurr = currCount / currDays;
+            return Number((vCurr - vPrev).toFixed(2));
+          });
+        };
+
+        const diffAmazonAll = calcDiffForChannel(s => s.channel === 'Amazon');
+        const diffAmazonVoltz = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'Voltz');
+        const diffAmazonDaan = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'DAAN');
+        const diffShopifyVoltz = calcDiffForChannel(s => s.channel === 'Shopify' && s.account === 'Voltz');
+
+        const diffOption = {
+          backgroundColor: '#0f172a',
+          textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+          title: {
+            text: `各渠道出货速度变动对比 (${currInter.label} vs ${prevInter.label}) - 已选 ${activeSkusList.length} 款`,
+            subtext: '纵轴：出货速度差值 (件/天，正数代表加速，负数代表减速) | 横轴：产品 SKU',
+            textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            left: 10, top: 10
+          },
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            backgroundColor: '#1e293b',
+            borderColor: '#475569',
+            textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
+            formatter: (params) => {
+              if (!params || params.length === 0) return '';
+              let html = `<b>SKU: ${params[0].axisValue}</b><br/>`;
+              params.forEach(p => {
+                const val = p.value;
+                const sign = val > 0 ? '+' : '';
+                html += `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${sign}${val} 件/天</b><br/>`;
+              });
+              return html;
+            }
           },
           legend: {
-            data: ['生效价格 (阶梯)', '区间日均出货速度 (AVG Count/DAY)'],
+            data: ['Amazon (全平台)', 'Amazon Voltz', 'Amazon DAAN', 'Shopify Voltz'],
             top: 10,
+            right: 20,
             textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
           },
-          grid: { left: '4%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+          grid: { left: '4%', right: '4%', bottom: '15%', top: '20%', containLabel: true },
           xAxis: {
             type: 'category',
-            data: xAxisLabels,
-            axisLine: { lineStyle: { color: '#475569' } },
-            axisLabel: { color: '#94a3b8', fontSize: 12, fontFamily: '"Calibre", "Calibri"' }
+            data: activeSkusList,
+            axisLabel: { color: '#94a3b8', interval: 0, rotate: 30, fontSize: 12, fontFamily: '"Calibre", "Calibri"' },
+            axisLine: { lineStyle: { color: '#475569' } }
           },
-          yAxis: [
-            {
-              type: 'value',
-              name: '价格 ($)',
-              position: 'left',
-              axisLabel: { formatter: '${value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
-              splitLine: { show: false }
-            },
-            {
-              type: 'value',
-              name: '日均销量 (件/天)',
-              position: 'right',
-              axisLabel: { formatter: '{value}', color: '#94a3b8', fontFamily: '"Calibre", "Calibri"' },
-              splitLine: { lineStyle: { type: 'dashed', color: 'rgba(71,85,105,0.4)' } }
-            }
-          ],
+          yAxis: {
+            type: 'value',
+            name: '速度差 (件/天)',
+            axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' },
+            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }
+          },
           series: [
             {
-              name: '区间日均出货速度 (AVG Count/DAY)',
+              name: 'Amazon (全平台)',
               type: 'bar',
-              yAxisIndex: 1,
-              barWidth: '35%',
-              data: barData,
-              itemStyle: { color: '#38bdf8', borderRadius: [4, 4, 0, 0] },
-              label: {
-                show: true,
-                position: 'top',
-                formatter: (params) => Number(params.value).toFixed(2) + ' 件/天',
-                color: '#38bdf8',
-                fontWeight: 700,
-                fontFamily: '"Calibre", "Calibri"'
-              }
+              data: diffAmazonAll,
+              itemStyle: { color: '#f59e0b', borderRadius: [3, 3, 0, 0] }
             },
             {
-              name: '生效价格 (阶梯)',
-              type: 'line',
-              step: 'end',
-              yAxisIndex: 0,
-              data: lineData,
-              lineStyle: { width: 3, color: '#f59e0b' },
-              itemStyle: { color: '#f59e0b', borderWidth: 2, borderColor: '#0f172a' }
+              name: 'Amazon Voltz',
+              type: 'bar',
+              data: diffAmazonVoltz,
+              itemStyle: { color: '#38bdf8', borderRadius: [3, 3, 0, 0] }
+            },
+            {
+              name: 'Amazon DAAN',
+              type: 'bar',
+              data: diffAmazonDaan,
+              itemStyle: { color: '#a855f7', borderRadius: [3, 3, 0, 0] }
+            },
+            {
+              name: 'Shopify Voltz',
+              type: 'bar',
+              data: diffShopifyVoltz,
+              itemStyle: { color: '#10b981', borderRadius: [3, 3, 0, 0] }
             }
           ]
         };
 
-        chartInst.current.setOption(option, true);
-        chartInst.current.resize();
-      }, 50);
+        velocityDiffChartInst.current.setOption(diffOption, true);
+        velocityDiffChartInst.current.resize();
+      }
+    };
 
-      const handleResize = () => chartInst.current?.resize();
-      window.addEventListener('resize', handleResize);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('resize', handleResize);
-      };
-    }, [activeTab, detailSku, sortedAndFilteredRows, timeIntervals]);
-
-    // TAB 3 全局洞察图表
+    // 监听 Tab 切换与数据变化触发重新渲染
     useEffect(() => {
-      if (activeTab !== 'tab3') return;
-
       const timer = setTimeout(() => {
-        // 1. 散点象限图
-        if (scatterRef.current) {
-          if (!scatterInst.current) scatterInst.current = echarts.init(scatterRef.current);
-
-          const scatterData = sortedAndFilteredRows.map(r => [
-            r.priceChangePct,
-            r.totalSpeedDiff,
-            r.sku,
-            r.itemType
-          ]);
-
-          scatterInst.current.setOption({
-            backgroundColor: '#0f172a',
-            textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
-            title: {
-              text: '价格变动百分比 vs 出货速度变动相关性象限图',
-              subtext: '左上：降价大幅起量 (高弹性促销) | 左下：降价未见起量 (虚弱SKU) | 右上：提价依然强劲 (品牌溢价)',
-              textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              left: 10, top: 10
-            },
-            tooltip: {
-              trigger: 'item',
-              backgroundColor: '#1e293b',
-              borderColor: '#475569',
-              textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              formatter: (params) => {
-                const [pct, diff, sku, type] = params.value;
-                return `<b>SKU: ${sku}</b> (${type})<br/>调价变动率: <b>${pct > 0 ? '+' + pct : pct}%</b><br/>出货速度差: <b>${diff > 0 ? '+' + diff : diff} 件/天</b>`;
-              }
-            },
-            grid: { left: '5%', right: '5%', bottom: '12%', top: '22%', containLabel: true },
-            xAxis: {
-              name: '调价幅度 (%)',
-              nameLocation: 'middle',
-              nameGap: 28,
-              nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
-              axisLine: { lineStyle: { color: '#475569' } },
-              axisLabel: { color: '#94a3b8', formatter: '{value}%', fontFamily: '"Calibre", "Calibri"' }
-            },
-            yAxis: {
-              name: '速度变化 (件/天)',
-              nameTextStyle: { color: '#94a3b8', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
-              axisLine: { lineStyle: { color: '#475569' } },
-              axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' }
-            },
-            series: [{
-              type: 'scatter',
-              symbolSize: 18,
-              data: scatterData,
-              itemStyle: {
-                color: (param) => {
-                  const diff = param.value[1];
-                  return diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#94a3b8');
-                },
-                shadowBlur: 8,
-                shadowColor: 'rgba(0,0,0,0.5)'
-              },
-              label: {
-                show: true,
-                formatter: (p) => p.value[2],
-                position: 'top',
-                color: '#cbd5e1',
-                fontSize: 11,
-                fontFamily: '"Calibre", "Calibri"'
-              },
-              markLine: {
-                lineStyle: { type: 'solid', color: '#64748b', width: 1.5 },
-                data: [{ xAxis: 0 }, { yAxis: 0 }]
-              }
-            }]
-          }, true);
-          scatterInst.current.resize();
-        }
-
-        // 2. 调价区间出货速度差对比图
-        if (velocityDiffChartRef.current && timeIntervals.length > 1) {
-          if (!velocityDiffChartInst.current) {
-            velocityDiffChartInst.current = echarts.init(velocityDiffChartRef.current);
-          }
-
-          const currInter = timeIntervals[selectedCompareIdx] || timeIntervals[1];
-          const prevInter = timeIntervals[selectedCompareIdx - 1] || timeIntervals[0];
-
-          const currDays = Math.max(1, Math.ceil((new Date(currInter.end) - new Date(currInter.start)) / 86400000) + 1);
-          const prevDays = Math.max(1, Math.ceil((new Date(prevInter.end) - new Date(prevInter.start)) / 86400000) + 1);
-
-          const allSkusList = sortedAndFilteredRows.map(r => r.sku);
-
-          const calcDiffForChannel = (filterFn) => {
-            return allSkusList.map(sku => {
-              const prevCount = salesData
-                .filter(s => s.sku === sku && filterFn(s) && s.date >= prevInter.start && s.date <= prevInter.end && (!onlyPositive || isPositiveStatus(s.status)))
-                .reduce((acc, c) => acc + c.qty, 0);
-
-              const currCount = salesData
-                .filter(s => s.sku === sku && filterFn(s) && s.date >= currInter.start && s.date <= currInter.end && (!onlyPositive || isPositiveStatus(s.status)))
-                .reduce((acc, c) => acc + c.qty, 0);
-
-              const vPrev = prevCount / prevDays;
-              const vCurr = currCount / currDays;
-              return Number((vCurr - vPrev).toFixed(2));
-            });
-          };
-
-          const diffAmazonAll = calcDiffForChannel(s => s.channel === 'Amazon');
-          const diffAmazonVoltz = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'Voltz');
-          const diffAmazonDaan = calcDiffForChannel(s => s.channel === 'Amazon' && s.account === 'DAAN');
-          const diffShopifyVoltz = calcDiffForChannel(s => s.channel === 'Shopify' && s.account === 'Voltz');
-
-          const diffOption = {
-            backgroundColor: '#0f172a',
-            textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
-            title: {
-              text: `各渠道出货速度变动对比 (${currInter.label} vs ${prevInter.label})`,
-              subtext: '纵轴：出货速度差值 (件/天，正数代表加速，负数代表减速) | 横轴：产品 SKU',
-              textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              subtextStyle: { color: '#94a3b8', fontSize: 11, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              left: 10, top: 10
-            },
-            tooltip: {
-              trigger: 'axis',
-              axisPointer: { type: 'shadow' },
-              backgroundColor: '#1e293b',
-              borderColor: '#475569',
-              textStyle: { color: '#f8fafc', fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' },
-              formatter: (params) => {
-                let html = `<b>SKU: ${params[0].axisValue}</b><br/>`;
-                params.forEach(p => {
-                  const val = p.value;
-                  const sign = val > 0 ? '+' : '';
-                  html += `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${sign}${val} 件/天</b><br/>`;
-                });
-                return html;
-              }
-            },
-            legend: {
-              data: ['Amazon (全平台)', 'Amazon Voltz', 'Amazon DAAN', 'Shopify Voltz'],
-              top: 10,
-              right: 20,
-              textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
-            },
-            grid: { left: '4%', right: '4%', bottom: '15%', top: '20%', containLabel: true },
-            xAxis: {
-              type: 'category',
-              data: allSkusList,
-              axisLabel: { color: '#94a3b8', interval: 0, rotate: 30, fontSize: 12, fontFamily: '"Calibre", "Calibri"' },
-              axisLine: { lineStyle: { color: '#475569' } }
-            },
-            yAxis: {
-              type: 'value',
-              name: '速度差 (件/天)',
-              axisLabel: { color: '#94a3b8', formatter: '{value}', fontFamily: '"Calibre", "Calibri"' },
-              splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }
-            },
-            series: [
-              {
-                name: 'Amazon (全平台)',
-                type: 'bar',
-                data: diffAmazonAll,
-                itemStyle: { color: '#f59e0b', borderRadius: [3, 3, 0, 0] }
-              },
-              {
-                name: 'Amazon Voltz',
-                type: 'bar',
-                data: diffAmazonVoltz,
-                itemStyle: { color: '#38bdf8', borderRadius: [3, 3, 0, 0] }
-              },
-              {
-                name: 'Amazon DAAN',
-                type: 'bar',
-                data: diffAmazonDaan,
-                itemStyle: { color: '#a855f7', borderRadius: [3, 3, 0, 0] }
-              },
-              {
-                name: 'Shopify Voltz',
-                type: 'bar',
-                data: diffShopifyVoltz,
-                itemStyle: { color: '#10b981', borderRadius: [3, 3, 0, 0] }
-              }
-            ]
-          };
-
-          velocityDiffChartInst.current.setOption(diffOption, true);
-          velocityDiffChartInst.current.resize();
+        if (activeTab === 'tab2') {
+          renderTab2Chart();
+        } else if (activeTab === 'tab3') {
+          renderTab3Charts();
         }
       }, 60);
 
-      const handleAllResize = () => {
-        scatterInst.current?.resize();
-        velocityDiffChartInst.current?.resize();
+      return () => clearTimeout(timer);
+    }, [activeTab, activeEnabledRows, detailSku, salesData, onlyPositive, selectedCompareIdx, timeIntervals]);
+
+    // 窗口 resize 监听
+    useEffect(() => {
+      const handleResize = () => {
+        if (activeTab === 'tab2') chartInst.current?.resize();
+        if (activeTab === 'tab3') {
+          scatterInst.current?.resize();
+          velocityDiffChartInst.current?.resize();
+        }
       };
-      window.addEventListener('resize', handleAllResize);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('resize', handleAllResize);
-      };
-    }, [activeTab, sortedAndFilteredRows, salesData, onlyPositive, selectedCompareIdx, timeIntervals]);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }, [activeTab]);
 
     const renderSortArrow = (key, intervalId = null) => {
       if (sortConfig.key === key && sortConfig.intervalId === intervalId) {
@@ -1282,7 +1314,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
             <div>
               <div className="title">出货持平/无波动 (Flat)</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                占当前库容: <strong style={{ color: 'var(--primary)' }}>{((velocitySummary.speedFlat / Math.max(sortedAndFilteredRows.length, 1)) * 100).toFixed(0)}%</strong>
+                占已选库容: <strong style={{ color: 'var(--primary)' }}>{((velocitySummary.speedFlat / Math.max(velocitySummary.totalActive, 1)) * 100).toFixed(0)}%</strong>
               </div>
             </div>
             <div className="val" style={{ color: 'var(--text-muted)' }}>{velocitySummary.speedFlat} <span style={{ fontSize: '0.9rem' }}>款</span></div>
@@ -1290,12 +1322,12 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
 
           <div className="summary-card" style={{ borderLeft: '4px solid var(--warning)' }}>
             <div>
-              <div className="title">纳入复盘产品总量</div>
+              <div className="title">当前参与分析产品</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                已自动保存: <strong style={{ color: 'var(--warning)' }}>{salesData.length} 笔订单</strong>
+                总库容: <strong>{allSkusList.length} 款</strong>
               </div>
             </div>
-            <div className="val" style={{ color: '#fff' }}>{sortedAndFilteredRows.length} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+            <div className="val" style={{ color: 'var(--warning)' }}>{velocitySummary.totalActive} <span style={{ fontSize: '0.9rem' }}>款</span></div>
           </div>
         </div>
 
@@ -1339,17 +1371,26 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
               }}
             />
             <button className="btn btn-primary" onClick={handleExportCSV}>
-              📥 导出分析报表 (CSV)
+              📥 导出已选报表 (CSV)
             </button>
           </div>
         </div>
 
         {/* TAB 1: 汇总对比表格 */}
-        {activeTab === 'tab1' && (
+        <div style={{ display: activeTab === 'tab1' ? 'block' : 'none' }}>
           <div className="table-container">
             <table>
               <thead>
                 <tr style={{ background: '#1e293b', textAlign: 'center', fontWeight: 700 }}>
+                  <th style={{ width: '45px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      title="全选 / 全不选"
+                      checked={enabledSkus.length === allSkusList.length && allSkusList.length > 0}
+                      onChange={e => toggleSelectAll(e.target.checked)}
+                      style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                    />
+                  </th>
                   <th colSpan="2" style={{ textAlign: 'left', borderRight: '1px solid var(--border)' }}>基础产品信息</th>
                   {timeIntervals.map((inter, idx) => (
                     <th
@@ -1367,6 +1408,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
                   <th style={{ textAlign: 'right' }}>操作</th>
                 </tr>
                 <tr style={{ background: '#0f172a', fontWeight: 600, fontSize: '0.78rem' }}>
+                  <th style={{ textAlign: 'center', color: 'var(--text-muted)' }}>启用</th>
                   <th onClick={() => handleSort('sku')} style={{ textAlign: 'left', cursor: 'pointer' }}>
                     SKU {renderSortArrow('sku')}
                   </th>
@@ -1397,10 +1439,20 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
               </thead>
               <tbody>
                 {sortedAndFilteredRows.map(row => (
-                  <tr key={row.sku}>
-                    <td style={{ textAlign: 'left', fontWeight: 700, color: '#fff' }}>{row.sku}</td>
+                  <tr key={row.sku} className={row.isEnabled ? '' : 'row-disabled'}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={row.isEnabled}
+                        onChange={() => toggleSkuEnabled(row.sku)}
+                        style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'left', fontWeight: 700, color: row.isEnabled ? '#fff' : 'var(--text-muted)' }}>
+                      {row.sku}
+                    </td>
                     <td style={{ textAlign: 'left', borderRight: '1px solid rgba(71,85,105,0.4)' }}>
-                      <span className="tag-badge">{row.itemType}</span>
+                      <span className="tag-badge" style={row.isEnabled ? {} : { opacity: 0.6 }}>{row.itemType}</span>
                     </td>
 
                     {row.intervalMetrics.map((m, idx) => (
@@ -1442,10 +1494,10 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
               </tbody>
             </table>
           </div>
-        )}
+        </div>
 
         {/* TAB 2: 单 SKU 阶梯分析图表与时光机 */}
-        {activeTab === 'tab2' && (
+        <div style={{ display: activeTab === 'tab2' ? 'block' : 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
               <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1464,7 +1516,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
                       cursor: 'pointer'
                     }}
                   >
-                    {selectedSkus.map(s => <option key={s} value={s} style={{ background: 'var(--card-bg)' }}>{s}</option>)}
+                    {allSkusList.map(s => <option key={s} value={s} style={{ background: 'var(--card-bg)' }}>{s} {enabledSkus.includes(s) ? '' : '(已排除)'}</option>)}
                   </select>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -1515,13 +1567,13 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
               <div ref={chartRef} style={{ width: '100%', height: '420px', minHeight: '420px' }}></div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* TAB 3: 全局洞察与渠道出货速度差对比图 */}
-        {activeTab === 'tab3' && (
+        {/* TAB 3: 全局洞察 (采用常驻显示控制，彻底杜绝空白渲染 bug) */}
+        <div style={{ display: activeTab === 'tab3' ? 'block' : 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
-              <div ref={scatterRef} style={{ width: '100%', height: '380px' }}></div>
+              <div ref={scatterRef} style={{ width: '100%', height: '380px', minHeight: '380px' }}></div>
             </div>
 
             <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
@@ -1559,14 +1611,14 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
                 </div>
 
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  提示：点击图例可单独显示或隐藏特定渠道
+                  已选 <strong>{activeEnabledRows.length}</strong> 款纳入对比 | 点击图例可单独显示/隐藏渠道
                 </div>
               </div>
 
               <div ref={velocityDiffChartRef} style={{ width: '100%', height: '440px', minHeight: '440px' }}></div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* 底部修订版本管理栏 */}
         <div className="footer-rev-bar">
@@ -1699,7 +1751,10 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 19, Minute 40)
                   onClick={() => {
                     const s = newSku.trim();
                     if (!s) return;
-                    if (!selectedSkus.includes(s)) setSelectedSkus([...selectedSkus, s]);
+                    if (!allSkusList.includes(s)) {
+                      setAllSkusList([...allSkusList, s]);
+                      setEnabledSkus([...enabledSkus, s]);
+                    }
                     setPriceData(prev => [...prev, { sku: s, date: '2026-07-01', price: Number(newBasePrice) || 100, itemType: newType }]);
                     setIsAddModalOpen(false);
                     setNewSku('');
