@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>电商多调价周期出货分析系统 - REV 2609242030</title>
+  <title>电商多调价周期出货分析系统 - REV 2609301300</title>
   <!-- React & Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -42,7 +42,7 @@
     }
 
     .wrapper {
-      max-width: 1560px;
+      max-width: 1620px;
       width: 100%;
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -300,25 +300,25 @@
 <script type="text/babel">
   const { useState, useMemo, useEffect, useRef } = React;
 
-  const CURRENT_REV = "2609242030";
+  const CURRENT_REV = "2609301300";
   const STORAGE_KEY_SALES = "VOLTZ_PRICE_SALES_LAST_SALES_DATA";
   const STORAGE_KEY_PRICES = "VOLTZ_PRICE_SALES_LAST_PRICE_DATA";
   const STORAGE_KEY_ENABLED_SKUS = "VOLTZ_PRICE_SALES_ENABLED_SKUS";
+  const STORAGE_KEY_INVENTORY = "VOLTZ_PRICE_SALES_LAST_INVENTORY_DATA";
+  const STORAGE_KEY_INV_DATE = "VOLTZ_PRICE_SALES_LAST_INV_DATE";
 
   const REV_HISTORY_TEXT = 
 `================================================================================
 VOLTZ TOYS PRICE & SALES PACE DUAL-DIMENSION SYSTEM - REVISION HISTORY
 Current Version: REV ${CURRENT_REV}
-Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
+Format: YYMMDDHHMM
 ================================================================================
 
-[REV: 2609242030] - 2026-09-24 20:30
-- Bug修复：彻底修复在 Tab 1 关闭任意产品后 Tab 3 图表空白的重大缺陷。
-- 根因排查：废弃 DOM 节点的条件渲染销毁，采用 CSS 常驻模式与自动 resize，解决 ECharts 幽灵 Canvas 实例丢失问题。
-- 图表联动：Tab 3 象限散点图与各渠道对比图严格对齐已勾选产品，实现毫秒级响应重算。
-
-[REV: 2609242000] - 2026-09-24 20:00
-- 产品布尔过滤：Tab 1 每一行新增独立勾选框，支持动态剔除产品。
+[REV: 2609301300] - 2026-09-30 13:00
+- 库存数据集成：支持上传库存导出 CSV，智能剥离前置日期头行并提取导出时间戳。
+- 字段选择与多变体汇总：提供 4 项库存维度切换，自动根据 Product ID 对各颜色变体库存求和。
+- 动态去化周期测算：计算基于调整后最新速度的消耗完天数，直观标识断货预警与周转。
+- TAB 2 单品深度联动：在单品阶梯图界面无缝呈现当前库存量与预期售罄天数。
 ================================================================================`;
 
   function parseCSV(text) {
@@ -496,7 +496,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
   }
 
   function App() {
-    // 数据持久化初始化
+    // 销售与调价持久化
     const [salesData, setSalesData] = useState(() => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY_SALES);
@@ -515,6 +515,23 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       }
     });
 
+    // 库存数据持久化 (结构: { '82032': { wh: 250, res: 10, inc: 0, avail: 240 } })
+    const [inventoryMap, setInventoryMap] = useState(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_INVENTORY);
+        return saved ? JSON.parse(saved) : {};
+      } catch (err) {
+        return {};
+      }
+    });
+
+    const [inventoryExportTime, setInventoryExportTime] = useState(() => {
+      return localStorage.getItem(STORAGE_KEY_INV_DATE) || '';
+    });
+
+    // 选中的库存列 (对应图片上的 4 个 header)
+    const [selectedInvMetric, setSelectedInvMetric] = useState('Quantity Available');
+
     const [cutDates, setCutDates] = useState(['2026-09-17']);
 
     const defaultSkus = useMemo(() => [
@@ -525,7 +542,6 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
     ], []);
     const [allSkusList, setAllSkusList] = useState(defaultSkus);
 
-    // 勾选状态持久化
     const [enabledSkus, setEnabledSkus] = useState(() => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY_ENABLED_SKUS);
@@ -558,7 +574,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
 
     const [selectedCompareIdx, setSelectedCompareIdx] = useState(1);
 
-    // 图表 DOM 引用与 ECharts 实例引用
+    // 图表 DOM 引用
     const chartRef = useRef(null);
     const chartInst = useRef(null);
     const scatterRef = useRef(null);
@@ -591,13 +607,24 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       } catch (e) {}
     }, [enabledSkus]);
 
+    useEffect(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY_INVENTORY, JSON.stringify(inventoryMap));
+        localStorage.setItem(STORAGE_KEY_INV_DATE, inventoryExportTime);
+      } catch (e) {}
+    }, [inventoryMap, inventoryExportTime]);
+
     const handleResetStorage = () => {
-      if (confirm('确认清空已保存的上传数据与选择状态，恢复默认初始库吗？')) {
+      if (confirm('确认清空已保存的上传数据（含库存）与选择状态，恢复默认初始库吗？')) {
         localStorage.removeItem(STORAGE_KEY_SALES);
         localStorage.removeItem(STORAGE_KEY_PRICES);
         localStorage.removeItem(STORAGE_KEY_ENABLED_SKUS);
+        localStorage.removeItem(STORAGE_KEY_INVENTORY);
+        localStorage.removeItem(STORAGE_KEY_INV_DATE);
         setSalesData([]);
         setPriceData(DEFAULT_PRICE_HISTORY);
+        setInventoryMap({});
+        setInventoryExportTime('');
         setAllSkusList(defaultSkus);
         setEnabledSkus(defaultSkus);
         alert('已成功重置！');
@@ -677,6 +704,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       }
     }, [timeIntervals]);
 
+    // CSV 上传解析器
     const handleCsvUpload = (e, type) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -687,9 +715,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
         const rows = parseCSV(text);
         if (rows.length <= 1) return;
 
-        const headers = rows[0].map(h => h.trim());
-
         if (type === 'sales') {
+          const headers = rows[0].map(h => h.trim());
           const dateIdx = headers.indexOf('Date');
           const skuIdx = headers.indexOf('Product') !== -1 ? headers.indexOf('Product') : headers.indexOf('sku');
           const channelIdx = headers.indexOf('Base Channel') !== -1 ? headers.indexOf('Base Channel') : headers.indexOf('channel');
@@ -741,6 +768,66 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
           setPriceData(prev => [...prev, ...cleanPrices]);
           setCutDates(Array.from(newCuts));
           alert(`成功追加调价记录: ${cleanPrices.length} 条！数据已自动保存在本地。`);
+        } else if (type === 'inventory') {
+          // 处理带有导出前置时间戳的库存文件
+          let headerRowIdx = -1;
+          let detectedTime = '';
+
+          for (let i = 0; i < Math.min(rows.length, 5); i++) {
+            const rowStr = rows[i].join(',');
+            if (rowStr.includes('Time of export:')) {
+              detectedTime = rows[i][0].replace(/.*Time of export:\s*/i, '').trim();
+            }
+            if (rows[i].includes('Product ID') || rows[i].includes('Product Name') || rows[i].includes('Quantity in Warehouse')) {
+              headerRowIdx = i;
+              break;
+            }
+          }
+
+          if (headerRowIdx === -1) {
+            alert('未能识别库存文件的表头结构，请确保包含 Product ID 及库存列。');
+            return;
+          }
+
+          const headers = rows[headerRowIdx].map(h => h.trim());
+          const prodIdIdx = headers.indexOf('Product ID') !== -1 ? headers.indexOf('Product ID') : headers.indexOf('SKU');
+          const whIdx = headers.indexOf('Quantity in Warehouse');
+          const resIdx = headers.indexOf('Quantity Reserved');
+          const incIdx = headers.indexOf('Quantity Incoming');
+          const availIdx = headers.indexOf('Quantity Available');
+
+          const invMap = {};
+          let recordCount = 0;
+
+          for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const r = rows[i];
+            const prod = (r[prodIdIdx] || '').trim();
+            if (!prod) continue;
+
+            const wh = parseFloat(r[whIdx]) || 0;
+            const res = parseFloat(r[resIdx]) || 0;
+            const inc = parseFloat(r[incIdx]) || 0;
+            const avail = parseFloat(r[availIdx]) || 0;
+
+            if (!invMap[prod]) {
+              invMap[prod] = {
+                'Quantity in Warehouse': 0,
+                'Quantity Reserved': 0,
+                'Quantity Incoming': 0,
+                'Quantity Available': 0
+              };
+            }
+
+            invMap[prod]['Quantity in Warehouse'] += wh;
+            invMap[prod]['Quantity Reserved'] += res;
+            invMap[prod]['Quantity Incoming'] += inc;
+            invMap[prod]['Quantity Available'] += avail;
+            recordCount++;
+          }
+
+          setInventoryMap(invMap);
+          if (detectedTime) setInventoryExportTime(detectedTime);
+          alert(`成功解析库存数据！共聚合汇总 ${recordCount} 条单品变体记录。\n导出基准时间: ${detectedTime || '未检测到，已载入'}`);
         }
       };
       reader.readAsText(file);
@@ -795,9 +882,30 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
 
         const isEnabled = enabledSkus.includes(sku);
 
-        return { sku, itemType, intervalMetrics, priceChangePct, totalSpeedDiff, isEnabled };
+        // 库存与消耗天数测算 (采用最新区间的出货速度)
+        const currentInv = inventoryMap[sku] ? (inventoryMap[sku][selectedInvMetric] || 0) : null;
+        let daysToExhaust = null;
+        if (currentInv !== null) {
+          if (lastSpeed > 0) {
+            daysToExhaust = Number((currentInv / lastSpeed).toFixed(1));
+          } else {
+            daysToExhaust = currentInv > 0 ? 99999 : 0; // 99999 代表停滞不可消耗
+          }
+        }
+
+        return {
+          sku,
+          itemType,
+          intervalMetrics,
+          priceChangePct,
+          totalSpeedDiff,
+          isEnabled,
+          currentInv,
+          daysToExhaust,
+          latestSpeed: lastSpeed
+        };
       });
-    }, [allSkusList, salesData, priceData, timeIntervals, selectedChannels, selectedAccounts, onlyPositive, enabledSkus]);
+    }, [allSkusList, salesData, priceData, timeIntervals, selectedChannels, selectedAccounts, onlyPositive, enabledSkus, inventoryMap, selectedInvMetric]);
 
     // 搜索与排序
     const sortedAndFilteredRows = useMemo(() => {
@@ -817,6 +925,14 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
           } else if (sortConfig.key === 'itemType') {
             valA = a.itemType; valB = b.itemType;
             return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          } else if (sortConfig.key === 'currentInv') {
+            valA = a.currentInv ?? -999999;
+            valB = b.currentInv ?? -999999;
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+          } else if (sortConfig.key === 'daysToExhaust') {
+            valA = a.daysToExhaust ?? -999999;
+            valB = b.daysToExhaust ?? -999999;
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
           } else {
             const mA = a.intervalMetrics.find(m => m.id === sortConfig.intervalId);
             const mB = b.intervalMetrics.find(m => m.id === sortConfig.intervalId);
@@ -829,7 +945,6 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       return result;
     }, [rawTableRows, searchQuery, sortConfig]);
 
-    // 仅已勾选的产品参与 Tab 3 的计算和渲染
     const activeEnabledRows = useMemo(() => {
       return sortedAndFilteredRows.filter(r => r.isEnabled);
     }, [sortedAndFilteredRows]);
@@ -874,8 +989,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
         return;
       }
 
-      let headerRow1 = ['基础信息', ''];
-      let headerRow2 = ['SKU', '品类'];
+      let headerRow1 = ['基础信息', '', '库存与去化', ''];
+      let headerRow2 = ['SKU', '品类', `${selectedInvMetric}`, '消耗完天数(天)'];
 
       timeIntervals.forEach((inter, idx) => {
         if (idx === 0) {
@@ -892,7 +1007,9 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       csvContent.push(headerRow2.join(','));
 
       activeEnabledRows.forEach(r => {
-        const row = [r.sku, r.itemType];
+        const invStr = r.currentInv !== null ? r.currentInv : '-';
+        const exhaustStr = r.daysToExhaust !== null ? (r.daysToExhaust >= 99999 ? '∞ (停滞)' : r.daysToExhaust) : '-';
+        const row = [r.sku, r.itemType, invStr, exhaustStr];
         r.intervalMetrics.forEach((m, idx) => {
           row.push(m.activePrice.toFixed(2));
           row.push(m.count.toFixed(2));
@@ -908,7 +1025,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Voltz_Toys_Price_Sales_Report_${CURRENT_REV}.csv`;
+      link.download = `Voltz_Toys_Price_Sales_Inventory_Report_${CURRENT_REV}.csv`;
       link.click();
       URL.revokeObjectURL(url);
     };
@@ -935,9 +1052,21 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       const barData = currentDetail?.intervalMetrics.map(m => m.avgSpeed) || [0, 0];
       const lineData = currentDetail?.intervalMetrics.map(m => m.activePrice) || [100, 100];
 
+      const invVal = currentDetail?.currentInv !== null && currentDetail?.currentInv !== undefined ? currentDetail.currentInv : '--';
+      const exhaustText = currentDetail?.daysToExhaust !== null && currentDetail?.daysToExhaust !== undefined 
+        ? (currentDetail.daysToExhaust >= 99999 ? '∞ (停滞)' : `${currentDetail.daysToExhaust} 天`) 
+        : '--';
+
       const option = {
         backgroundColor: '#0f172a',
         textStyle: { fontFamily: '"Calibre", "Calibri", "Microsoft YaHei", sans-serif' },
+        title: {
+          text: `${detailSku} 调价阶梯与出货速度对比图`,
+          subtext: `当前匹配库存(${selectedInvMetric}): ${invVal} 件 | 按最新调整后速度(${currentDetail?.latestSpeed || 0}件/天) 预计消耗: ${exhaustText}`,
+          textStyle: { color: '#f8fafc', fontSize: 13, fontWeight: 700 },
+          subtextStyle: { color: 'var(--primary)', fontSize: 11, fontWeight: 600 },
+          left: 10, top: 10
+        },
         tooltip: {
           trigger: 'axis',
           axisPointer: { type: 'cross', lineStyle: { color: '#475569' } },
@@ -948,9 +1077,10 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
         legend: {
           data: ['生效价格 (阶梯)', '区间日均出货速度 (AVG Count/DAY)'],
           top: 10,
+          right: 20,
           textStyle: { color: '#94a3b8', fontWeight: 600, fontFamily: '"Calibre", "Calibri", "Microsoft YaHei"' }
         },
-        grid: { left: '4%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+        grid: { left: '4%', right: '5%', bottom: '10%', top: '22%', containLabel: true },
         xAxis: {
           type: 'category',
           data: xAxisLabels,
@@ -1006,7 +1136,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       chartInst.current.resize();
     };
 
-    // --- TAB 3 图表渲染 (保证 DOM 常驻，彻底消除空白异常) ---
+    // --- TAB 3 图表渲染 ---
     const renderTab3Charts = () => {
       // 1. 散点象限图
       if (scatterRef.current) {
@@ -1198,7 +1328,6 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       }
     };
 
-    // 监听 Tab 切换与数据变化触发重新渲染
     useEffect(() => {
       const timer = setTimeout(() => {
         if (activeTab === 'tab2') {
@@ -1209,9 +1338,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       }, 60);
 
       return () => clearTimeout(timer);
-    }, [activeTab, activeEnabledRows, detailSku, salesData, onlyPositive, selectedCompareIdx, timeIntervals]);
+    }, [activeTab, activeEnabledRows, detailSku, salesData, onlyPositive, selectedCompareIdx, timeIntervals, inventoryMap, selectedInvMetric]);
 
-    // 窗口 resize 监听
     useEffect(() => {
       const handleResize = () => {
         if (activeTab === 'tab2') chartInst.current?.resize();
@@ -1231,6 +1359,11 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
       return ' ↕';
     };
 
+    // 当前选中的 SKU 详情
+    const selectedDetailRow = useMemo(() => {
+      return rawTableRows.find(r => r.sku === detailSku);
+    }, [rawTableRows, detailSku]);
+
     return (
       <div>
         {/* 头部与版本号 */}
@@ -1240,7 +1373,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
               <h1>Voltz Toys 出货速度与调价复盘系统</h1>
               <span className="rev-badge">REV: {CURRENT_REV}</span>
             </div>
-            <p>Multi-Interval Pricing & Daily Shipping Velocity Analytics Dashboard</p>
+            <p>Multi-Interval Pricing, Daily Shipping Velocity & Inventory Run-Out Analytics</p>
           </div>
 
           <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1273,6 +1406,32 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
               />
               <span>仅有效发货 (PositiveStatus)</span>
             </label>
+
+            <div style={{ width: '1px', height: '24px', background: 'var(--border)' }}></div>
+
+            {/* 库存列选择器 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>库存匹配口径:</span>
+              <select
+                value={selectedInvMetric}
+                onChange={e => setSelectedInvMetric(e.target.value)}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid var(--border)',
+                  color: 'var(--primary)',
+                  padding: '0.4rem 0.6rem',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="Quantity Available">Quantity Available (可用库存)</option>
+                <option value="Quantity in Warehouse">Quantity in Warehouse (仓库库存)</option>
+                <option value="Quantity Reserved">Quantity Reserved (预留/锁定)</option>
+                <option value="Quantity Incoming">Quantity Incoming (在途补货)</option>
+              </select>
+            </div>
           </div>
 
           <div className="nav-tabs">
@@ -1288,7 +1447,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
           </div>
         </div>
 
-        {/* 速度涨跌统计卡片栏 */}
+        {/* 速度与库存统计卡片栏 */}
         <div className="summary-grid">
           <div className="summary-card" style={{ borderLeft: '4px solid var(--success)' }}>
             <div>
@@ -1322,35 +1481,55 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
 
           <div className="summary-card" style={{ borderLeft: '4px solid var(--warning)' }}>
             <div>
-              <div className="title">当前参与分析产品</div>
+              <div className="title">库存数据状态</div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                总库容: <strong>{allSkusList.length} 款</strong>
+                {inventoryExportTime ? `快照: ${inventoryExportTime}` : '暂未上传库存 CSV'}
               </div>
             </div>
-            <div className="val" style={{ color: 'var(--warning)' }}>{velocitySummary.totalActive} <span style={{ fontSize: '0.9rem' }}>款</span></div>
+            <div className="val" style={{ color: 'var(--warning)', fontSize: '1.4rem' }}>
+              {Object.keys(inventoryMap).length > 0 ? `${Object.keys(inventoryMap).length} 品聚合` : '待匹配'}
+            </div>
           </div>
         </div>
 
-        {/* CSV 上传通道与导出/搜索行 */}
+        {/* CSV 上传通道行 */}
         <div className="control-panel" style={{ padding: '0.85rem 1.25rem' }}>
-          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* 1. 销售订单 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.83rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>1. 订单 Raw Data:</span>
               <label className="btn" style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}>
                 <span>📁 上传 CSV</span>
                 <input type="file" accept=".csv" onChange={e => handleCsvUpload(e, 'sales')} style={{ display: 'none' }} />
               </label>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>({salesData.length} 条已缓存)</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>({salesData.length} 条已存)</span>
             </div>
 
             <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            {/* 2. 调价历史 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.83rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>2. 调价记录:</span>
               <label className="btn" style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}>
                 <span>📁 上传 CSV</span>
                 <input type="file" accept=".csv" onChange={e => handleCsvUpload(e, 'prices')} style={{ display: 'none' }} />
               </label>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
+
+            {/* 3. 现有库存数据 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.83rem' }}>
+              <span style={{ color: 'var(--emerald)', fontWeight: 700 }}>3. 现存库存 Data:</span>
+              <label className="btn btn-success" style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}>
+                <span>📦 上传库存 CSV</span>
+                <input type="file" accept=".csv" onChange={e => handleCsvUpload(e, 'inventory')} style={{ display: 'none' }} />
+              </label>
+              {inventoryExportTime && (
+                <span style={{ color: 'var(--emerald)', fontSize: '0.78rem' }}>
+                  (已同步: {inventoryExportTime})
+                </span>
+              )}
             </div>
           </div>
 
@@ -1392,6 +1571,9 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
                     />
                   </th>
                   <th colSpan="2" style={{ textAlign: 'left', borderRight: '1px solid var(--border)' }}>基础产品信息</th>
+                  <th colSpan="2" style={{ textAlign: 'center', borderRight: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--emerald)' }}>
+                    库存与去化周期 ({selectedInvMetric})
+                  </th>
                   {timeIntervals.map((inter, idx) => (
                     <th
                       key={inter.id}
@@ -1414,6 +1596,14 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
                   </th>
                   <th onClick={() => handleSort('itemType')} style={{ textAlign: 'left', borderRight: '1px solid var(--border)', cursor: 'pointer' }}>
                     品类 {renderSortArrow('itemType')}
+                  </th>
+
+                  {/* 库存列与消耗天数列 */}
+                  <th onClick={() => handleSort('currentInv')} style={{ textAlign: 'right', cursor: 'pointer', color: 'var(--emerald)' }}>
+                    现存量 {renderSortArrow('currentInv')}
+                  </th>
+                  <th onClick={() => handleSort('daysToExhaust')} style={{ textAlign: 'right', borderRight: '1px solid var(--border)', cursor: 'pointer', color: 'var(--emerald)' }}>
+                    消耗天数(天) {renderSortArrow('daysToExhaust')}
                   </th>
 
                   {timeIntervals.map((inter, idx) => (
@@ -1453,6 +1643,27 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
                     </td>
                     <td style={{ textAlign: 'left', borderRight: '1px solid rgba(71,85,105,0.4)' }}>
                       <span className="tag-badge" style={row.isEnabled ? {} : { opacity: 0.6 }}>{row.itemType}</span>
+                    </td>
+
+                    {/* 库存值 */}
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: row.currentInv !== null ? (row.currentInv <= 10 ? 'var(--danger)' : 'var(--emerald)') : 'var(--text-muted)' }}>
+                      {row.currentInv !== null ? row.currentInv : '--'}
+                    </td>
+                    {/* 消耗完天数 */}
+                    <td style={{ textAlign: 'right', fontWeight: 700, borderRight: '1px solid rgba(71,85,105,0.4)' }}>
+                      {row.daysToExhaust !== null ? (
+                        row.daysToExhaust >= 99999 ? (
+                          <span style={{ color: 'var(--text-muted)' }}>∞ (停滞)</span>
+                        ) : row.daysToExhaust <= 15 ? (
+                          <span style={{ color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                            {row.daysToExhaust} 天 ⚠️
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--primary)' }}>{row.daysToExhaust} 天</span>
+                        )
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>--</span>
+                      )}
                     </td>
 
                     {row.intervalMetrics.map((m, idx) => (
@@ -1496,10 +1707,10 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
           </div>
         </div>
 
-        {/* TAB 2: 单 SKU 阶梯分析图表与时光机 */}
+        {/* TAB 2: 单 SKU 阶梯分析图表与时光机 (全面同步库存与消耗天数) */}
         <div style={{ display: activeTab === 'tab2' ? 'block' : 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>当前复盘商品</div>
@@ -1527,6 +1738,38 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
                 </div>
               </div>
 
+              {/* TAB 2 同步卡片 1: 所选口径库存量 */}
+              <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>匹配库存量</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--emerald)', marginTop: '2px' }}>{selectedInvMetric}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{inventoryExportTime || '未检测到时间'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--emerald)' }}>
+                    {selectedDetailRow?.currentInv !== null && selectedDetailRow?.currentInv !== undefined ? selectedDetailRow.currentInv : '--'}
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '4px' }}>件</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* TAB 2 同步卡片 2: 预计消耗天数 */}
+              <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>调整后消耗完天数</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    按最新速度: <strong style={{ color: 'var(--primary)' }}>{selectedDetailRow?.latestSpeed || 0} 件/天</strong>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 800, color: selectedDetailRow?.daysToExhaust <= 15 ? 'var(--danger)' : 'var(--primary)' }}>
+                    {selectedDetailRow?.daysToExhaust !== null && selectedDetailRow?.daysToExhaust !== undefined ? (
+                      selectedDetailRow.daysToExhaust >= 99999 ? '∞ (停滞)' : `${selectedDetailRow.daysToExhaust} 天`
+                    ) : '--'}
+                  </div>
+                </div>
+              </div>
+
               <div className="kpi-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>价格时光机验证器</div>
@@ -1548,7 +1791,7 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>执行价格</div>
-                  <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--warning)' }}>
                     ${checkedPrice !== null ? checkedPrice.toFixed(2) : '--'}
                   </div>
                 </div>
@@ -1556,20 +1799,12 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
             </div>
 
             <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.5rem' }}>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
-                  {detailSku} 调价阶梯与出货速度对比图
-                </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  黄线：阶梯价格 | 蓝柱：日均出货速度 (件/天)
-                </span>
-              </div>
               <div ref={chartRef} style={{ width: '100%', height: '420px', minHeight: '420px' }}></div>
             </div>
           </div>
         </div>
 
-        {/* TAB 3: 全局洞察 (采用常驻显示控制，彻底杜绝空白渲染 bug) */}
+        {/* TAB 3: 全局洞察 */}
         <div style={{ display: activeTab === 'tab3' ? 'block' : 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ background: '#0f172a', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
@@ -1771,7 +2006,8 @@ Format: YYMMDDHHMM (Year 26, Month 09, Day 24, Hour 20, Minute 30)
     );
   }
 
-  ReactDOM.render(<App />, document.getElementById('root'));
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App />);
 </script>
 </body>
 </html>
